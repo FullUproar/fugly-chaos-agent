@@ -1,0 +1,16 @@
+[project]
+id = "chaos-agent"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+
+[db]
+port = 54322
+
+[auth]
+enabled = true
+site_url = "http://localhost:8081"
+enable_signup = true
+enable_anonymous_sign_ins = true

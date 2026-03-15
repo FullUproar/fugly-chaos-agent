@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+dist/
+.env
+.env.local
+*.tsbuildinfo
+android/
+ios/
+
+# Supabase
+apps/supabase/.temp/
