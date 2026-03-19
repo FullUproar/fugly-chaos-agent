@@ -10,17 +10,23 @@ import type {
   Claim,
   Vote,
   VoteType,
+  Signal,
+  Poll,
+  FlashType,
+  SignalType,
 } from './database';
 
 // POST /create-room
 export interface CreateRoomRequest {
   game_type: GameType;
   game_name?: string;
+  nickname?: string;
   settings?: RoomSettings;
 }
 export interface CreateRoomResponse {
   room_id: string;
   code: string;
+  room_player_id: string;
 }
 
 // POST /join-room
@@ -33,12 +39,17 @@ export interface JoinRoomResponse {
   room_player_id: string;
 }
 
-// GET /room-state?room_id=X
+// POST /room-state
 export interface RoomStateResponse {
   room: Room;
   players: RoomPlayer[];
-  missions: Mission[]; // Only the requesting player's missions
+  standing_missions: Mission[];
+  active_flash: Mission | null;
+  active_poll: (Poll & { votes?: Array<{ room_player_id: string; answer: string }> }) | null;
+  my_poll_vote: string | null;
+  recent_signals: Signal[];
   active_claims: ClaimWithContext[];
+  all_claims: ClaimWithContext[];
   scores: PlayerScore[];
 }
 
@@ -66,13 +77,14 @@ export interface SetupCompleteRequest {
   answers: SetupAnswers;
 }
 export interface SetupCompleteResponse {
-  ready: boolean; // true if all players have submitted
-  waiting_on: string[]; // nicknames of players who haven't submitted
+  ready: boolean;
+  waiting_on: string[];
 }
 
 // POST /claim-mission
 export interface ClaimMissionRequest {
   mission_id: string;
+  evidence?: string;
 }
 export interface ClaimMissionResponse {
   claim_id: string;
@@ -95,7 +107,7 @@ export interface EndSessionRequest {
   room_id: string;
 }
 
-// GET /session-highlights?room_id=X
+// POST /session-highlights
 export interface SessionHighlightsResponse {
   leaderboard: PlayerScore[];
   highlights: Highlight[];
@@ -109,6 +121,38 @@ export interface Highlight {
   player_nickname: string;
   description: string;
   value: number;
+}
+
+// POST /trigger-event (dev backdoor)
+export interface TriggerEventRequest {
+  room_id: string;
+  event_type: 'flash_mission' | 'poll';
+  flash_type?: FlashType;
+  compress_timers?: boolean;
+}
+export interface TriggerEventResponse {
+  event_id: string;
+  type: string;
+}
+
+// POST /send-signal
+export interface SendSignalRequest {
+  room_id: string;
+  signal_type: SignalType;
+  target_player_id?: string;
+}
+export interface SendSignalResponse {
+  signal_id: string;
+  points_awarded: number;
+}
+
+// POST /submit-poll-vote
+export interface SubmitPollVoteRequest {
+  poll_id: string;
+  answer: string;
+}
+export interface SubmitPollVoteResponse {
+  recorded: boolean;
 }
 
 // Generic error response

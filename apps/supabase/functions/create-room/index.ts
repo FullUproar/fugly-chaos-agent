@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { game_type, game_name, settings } = await req.json();
+    const { game_type, game_name, settings, nickname } = await req.json();
     const supabase = getAdminClient();
 
     // Ensure player record exists
@@ -58,14 +58,16 @@ Deno.serve(async (req) => {
     if (roomError) throw roomError;
 
     // Add host as first player
-    await supabase.from('room_players').insert({
+    const { data: roomPlayer, error: rpError } = await supabase.from('room_players').insert({
       room_id: room.id,
       player_id: userId,
-      nickname: 'Host',
+      nickname: nickname ?? 'Host',
       is_host: true,
-    });
+    }).select('id').single();
 
-    return new Response(JSON.stringify({ room_id: room.id, code: room.code }), {
+    if (rpError) throw rpError;
+
+    return new Response(JSON.stringify({ room_id: room.id, code: room.code, room_player_id: roomPlayer.id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

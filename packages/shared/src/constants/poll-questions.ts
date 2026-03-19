@@ -1,0 +1,17 @@
+export const POLL_QUESTION_POOL: string[] = [
+  "Who's the most chaotic tonight?",
+  "Who's most likely to crack first?",
+  "Who's been suspiciously quiet?",
+  "Who would survive a zombie apocalypse?",
+  "Who tells the best stories?",
+  "Who's the worst liar here?",
+  "Who's the most competitive?",
+  "Who should get targeted next?",
+  "Who's having the most fun right now?",
+  "Who would you trust with a secret?",
+  "Who's the biggest troublemaker?",
+  "Who would be the best spy?",
+  "Who gives the best advice?",
+  "Who's most likely to forget this night?",
+  "Who's the funniest person here?",
+];

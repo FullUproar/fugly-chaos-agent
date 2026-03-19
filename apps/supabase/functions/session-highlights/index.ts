@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     const [playersResult, claimsResult, votesResult, missionsResult] = await Promise.all([
       supabase.from('room_players').select('*').eq('room_id', room_id).order('score', { ascending: false }),
       supabase.from('claims').select('*, missions!inner(room_id, title, points)').eq('missions.room_id', room_id),
-      supabase.from('votes').select('*, claims!inner(mission_id, room_player_id)'),
+      supabase.from('votes').select('*, claims!inner(mission_id, room_player_id, missions!inner(room_id))').eq('claims.missions.room_id', room_id),
       supabase.from('missions').select('*').eq('room_id', room_id),
     ]);
 

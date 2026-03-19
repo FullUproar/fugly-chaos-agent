@@ -10,8 +10,19 @@ export const FALSE_CLAIM_PENALTY = 5;
 
 export const AUTO_ACCEPT_SECONDS = 60;
 
-export const MISSIONS_PER_PLAYER = 3;
+export const STANDING_MISSION_COUNT = 8;
 
 export const MAX_PLAYERS_FREE = 12;
 
 export const POLL_INTERVAL_MS = 3000;
+
+// Flash mission timing
+export const FLASH_DURATION_MS = 75000; // 75 seconds
+export const POLL_DURATION_MS = 30000; // 30 seconds
+
+// Signal rewards
+export const SIGNAL_POINTS = 1;
+
+// Dev/test mode (compressed timers)
+export const DEV_FLASH_DURATION_MS = 30000; // 30 seconds
+export const DEV_POLL_DURATION_MS = 15000; // 15 seconds

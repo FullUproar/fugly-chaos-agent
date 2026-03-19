@@ -49,8 +49,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (room.status !== 'LOBBY') {
-      return new Response(JSON.stringify({ error: 'Game already in progress' }), {
+    if (room.status === 'ENDED') {
+      return new Response(JSON.stringify({ error: 'Game has ended' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

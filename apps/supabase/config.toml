@@ -1,6 +1,3 @@
-[project]
-id = "chaos-agent"
-
 [api]
 enabled = true
 port = 54321

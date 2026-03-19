@@ -1,10 +1,22 @@
 // Types matching Supabase table rows
 
 export type RoomStatus = 'LOBBY' | 'SETUP' | 'ACTIVE' | 'ENDED';
-export type MissionStatus = 'HIDDEN' | 'REVEALED' | 'CLAIMED' | 'VERIFIED' | 'FAILED';
+export type MissionStatus = 'HIDDEN' | 'REVEALED' | 'CLAIMED' | 'VERIFIED' | 'FAILED' | 'EXPIRED';
 export type ClaimStatus = 'PENDING' | 'ACCEPTED' | 'CHALLENGED' | 'VOTE_PASSED' | 'VOTE_FAILED';
 export type VoteType = 'ACCEPT' | 'BULLSHIT';
 export type GameType = 'board_game' | 'party_game' | 'dinner_party' | 'house_party' | 'bar_night' | 'custom';
+
+// New mission types
+export type MissionType = 'standing' | 'flash';
+export type FlashType = 'race' | 'target' | 'group';
+export type MissionVisibility = 'all' | 'assigned';
+
+// Social signals
+export type SignalType = 'shake_it_up' | 'slow_your_roll' | 'target_player' | 'im_bored';
+
+// Polls
+export type PollType = 'player_vote' | 'text_vote';
+export type PollStatus = 'ACTIVE' | 'CLOSED';
 
 export interface Player {
   id: string;
@@ -55,13 +67,18 @@ export interface SetupAnswers {
 export interface Mission {
   id: string;
   room_id: string;
-  room_player_id: string;
+  room_player_id: string | null; // null for standing missions
   title: string;
   description: string;
   difficulty: number;
   points: number;
   category: MissionCategory;
   status: MissionStatus;
+  type: MissionType;
+  flash_type: FlashType | null;
+  expires_at: string | null; // ISO timestamp, null for standing
+  visible_to: MissionVisibility;
+  target_player_id: string | null; // for flash target missions
   ai_context: Record<string, unknown> | null;
   created_at: string;
 }
@@ -83,5 +100,33 @@ export interface Vote {
   claim_id: string;
   room_player_id: string;
   vote: VoteType;
+  voted_at: string;
+}
+
+export interface Signal {
+  id: string;
+  room_id: string;
+  room_player_id: string;
+  signal_type: SignalType;
+  target_player_id: string | null;
+  created_at: string;
+}
+
+export interface Poll {
+  id: string;
+  room_id: string;
+  question: string;
+  poll_type: PollType;
+  options: string[];
+  status: PollStatus;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface PollVote {
+  id: string;
+  poll_id: string;
+  room_player_id: string;
+  answer: string;
   voted_at: string;
 }

@@ -3,6 +3,8 @@ import type {
   Room,
   RoomPlayer,
   Mission,
+  Signal,
+  Poll,
   RoomStateResponse,
   ClaimWithContext,
   PlayerScore,
@@ -12,48 +14,90 @@ interface SessionState {
   // Identity
   playerId: string | null;
   roomPlayerId: string | null;
+  roomId: string | null;
   nickname: string | null;
   isHost: boolean;
 
   // Room state
   room: Room | null;
   players: RoomPlayer[];
-  missions: Mission[];
+  standingMissions: Mission[];
+  activeFlash: Mission | null;
+  activePoll: (Poll & { votes?: Array<{ room_player_id: string; answer: string }> }) | null;
+  myPollVote: string | null;
+  recentSignals: Signal[];
   activeClaims: ClaimWithContext[];
+  allClaims: ClaimWithContext[];
   scores: PlayerScore[];
 
+  // Local UI state
+  flashDismissed: boolean;
+  pollDismissed: boolean;
+  _lastFlashId: string | null;
+  _lastPollId: string | null;
+
   // Actions
-  setIdentity: (playerId: string, roomPlayerId: string, nickname: string, isHost: boolean) => void;
+  setIdentity: (playerId: string, roomPlayerId: string, roomId: string, nickname: string, isHost: boolean) => void;
   updateFromPoll: (state: RoomStateResponse) => void;
+  dismissFlash: () => void;
+  dismissPoll: () => void;
   reset: () => void;
 }
 
 const initialState = {
   playerId: null,
   roomPlayerId: null,
+  roomId: null,
   nickname: null,
   isHost: false,
   room: null,
   players: [],
-  missions: [],
+  standingMissions: [],
+  activeFlash: null,
+  activePoll: null,
+  myPollVote: null,
+  recentSignals: [],
   activeClaims: [],
+  allClaims: [],
   scores: [],
+  flashDismissed: false,
+  pollDismissed: false,
+  _lastFlashId: null,
+  _lastPollId: null,
 };
 
-export const useSessionStore = create<SessionState>((set) => ({
+export const useSessionStore = create<SessionState>((set, get) => ({
   ...initialState,
 
-  setIdentity: (playerId, roomPlayerId, nickname, isHost) =>
-    set({ playerId, roomPlayerId, nickname, isHost }),
+  setIdentity: (playerId, roomPlayerId, roomId, nickname, isHost) =>
+    set({ playerId, roomPlayerId, roomId, nickname, isHost }),
 
-  updateFromPoll: (state) =>
+  updateFromPoll: (state) => {
+    const prev = get();
+    const newFlashId = state.active_flash?.id ?? null;
+    const newPollId = state.active_poll?.id ?? null;
+
     set({
       room: state.room,
       players: state.players,
-      missions: state.missions,
+      standingMissions: state.standing_missions,
+      activeFlash: state.active_flash,
+      activePoll: state.active_poll,
+      myPollVote: state.my_poll_vote,
+      recentSignals: state.recent_signals,
       activeClaims: state.active_claims,
+      allClaims: state.all_claims ?? [],
       scores: state.scores,
-    }),
+      // Reset dismissed state when a new flash/poll arrives
+      flashDismissed: newFlashId !== prev._lastFlashId ? false : prev.flashDismissed,
+      pollDismissed: newPollId !== prev._lastPollId ? false : prev.pollDismissed,
+      _lastFlashId: newFlashId,
+      _lastPollId: newPollId,
+    });
+  },
+
+  dismissFlash: () => set({ flashDismissed: true }),
+  dismissPoll: () => set({ pollDismissed: true }),
 
   reset: () => set(initialState),
 }));

@@ -1,12 +1,16 @@
+// Full Uproar brand palette
 export const colors = {
-  bg: '#0A0A0A',
-  surface: '#1C1C1E',
-  surfaceBorder: '#333',
+  bg: '#111827',
+  surface: '#1f2937',
+  surfaceBorder: '#374151',
   text: '#FFFFFF',
-  textSecondary: '#888',
-  textMuted: '#444',
-  accent: '#FF3B30',
-  accentBg: '#1A0A09',
-  success: '#30D158',
-  warning: '#FF9500',
+  textSecondary: '#9ca3af',
+  textMuted: '#6b7280',
+  accent: '#FF8200',
+  accentBg: '#1A1000',
+  accentText: '#111827', // dark text on orange buttons
+  highlight: '#FBDB65',
+  success: '#10b981',
+  warning: '#fbbf24',
+  error: '#ef4444',
 };

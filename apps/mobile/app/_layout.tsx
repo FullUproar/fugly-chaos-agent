@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { colors } from '@/theme/colors';
 
 export default function RootLayout() {
   return (
@@ -8,12 +9,17 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#0A0A0A' },
-          headerTintColor: '#FFFFFF',
+          headerStyle: { backgroundColor: colors.bg },
+          headerTintColor: colors.text,
           headerTitleStyle: { fontWeight: 'bold' },
-          contentStyle: { backgroundColor: '#0A0A0A' },
+          contentStyle: { backgroundColor: colors.bg },
         }}
-      />
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="create" options={{ title: 'Create Room' }} />
+        <Stack.Screen name="join" options={{ title: 'Join Room' }} />
+        <Stack.Screen name="room/[code]" options={{ headerShown: false }} />
+      </Stack>
     </SafeAreaProvider>
   );
 }

@@ -1,26 +1,32 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import { colors } from '@/theme/colors';
+
+const fuglyImage = require('../assets/FuglyLaying.webp');
 
 export default function HomeScreen() {
   return (
     <View style={styles.container}>
+      <Image source={fuglyImage} style={styles.mascot} resizeMode="contain" />
       <Text style={styles.title}>CHAOS AGENT</Text>
       <Text style={styles.subtitle}>Secret missions. Social chaos.</Text>
 
       <View style={styles.buttons}>
-        <Pressable
+        <TouchableOpacity
           style={[styles.button, styles.createButton]}
           onPress={() => router.push('/create')}
+          activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>CREATE ROOM</Text>
-        </Pressable>
+          <Text style={styles.createButtonText}>CREATE ROOM</Text>
+        </TouchableOpacity>
 
-        <Pressable
+        <TouchableOpacity
           style={[styles.button, styles.joinButton]}
           onPress={() => router.push('/join')}
+          activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>JOIN ROOM</Text>
-        </Pressable>
+          <Text style={styles.joinButtonText}>JOIN ROOM</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -28,45 +34,21 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#0A0A0A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
+    flex: 1, backgroundColor: colors.bg,
+    alignItems: 'center', justifyContent: 'center', padding: 24,
   },
+  mascot: { width: 200, height: 150, marginBottom: 16 },
   title: {
-    fontSize: 40,
-    fontWeight: '900',
-    color: '#FF3B30',
-    letterSpacing: 4,
-    marginBottom: 8,
+    fontSize: 40, fontWeight: '900', color: colors.accent,
+    letterSpacing: 4, marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#888',
-    marginBottom: 64,
-  },
-  buttons: {
-    width: '100%',
-    gap: 16,
-  },
-  button: {
-    paddingVertical: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  createButton: {
-    backgroundColor: '#FF3B30',
-  },
+  subtitle: { fontSize: 16, color: colors.highlight, marginBottom: 64 },
+  buttons: { width: '100%', gap: 16 },
+  button: { paddingVertical: 20, borderRadius: 50, alignItems: 'center' },
+  createButton: { backgroundColor: colors.accent },
   joinButton: {
-    backgroundColor: '#1C1C1E',
-    borderWidth: 1,
-    borderColor: '#333',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surfaceBorder,
   },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-  },
+  createButtonText: { fontSize: 18, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
+  joinButtonText: { fontSize: 18, fontWeight: '900', color: colors.text, letterSpacing: 2 },
 });
