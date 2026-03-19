@@ -1,6 +1,6 @@
 // Types matching Supabase table rows
 
-export type RoomStatus = 'LOBBY' | 'SETUP' | 'ACTIVE' | 'ENDED';
+export type RoomStatus = 'INVITED' | 'LOBBY' | 'SETUP' | 'ACTIVE' | 'INTERMISSION' | 'ENDED';
 export type MissionStatus = 'HIDDEN' | 'REVEALED' | 'CLAIMED' | 'VERIFIED' | 'FAILED' | 'EXPIRED';
 export type ClaimStatus = 'PENDING' | 'ACCEPTED' | 'CHALLENGED' | 'VOTE_PASSED' | 'VOTE_FAILED';
 export type VoteType = 'ACCEPT' | 'BULLSHIT';
@@ -34,9 +34,66 @@ export interface Room {
   status: RoomStatus;
   settings: RoomSettings;
   max_players: number;
+  scheduled_at: string | null;
+  description: string | null;
+  invite_phase_enabled: boolean;
+  slow_burn_enabled: boolean;
+  intermission_duration_minutes: number;
+  photo_challenges_enabled: boolean;
+  ahq_game_night_id: string | null;
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
+}
+
+// Event invite status
+export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+
+export interface EventInvite {
+  id: string;
+  room_id: string;
+  invited_by: string;
+  player_id: string | null;
+  invite_name: string | null;
+  invite_contact: string | null;
+  status: InviteStatus;
+  pre_game_answers: PreGameAnswers;
+  invite_token: string;
+  invited_at: string;
+  responded_at: string | null;
+}
+
+export interface PreGameAnswers {
+  most_competitive?: string; // player nickname
+  cracks_under_pressure?: string;
+  most_likely_to_cheat?: string;
+  secret_weakness?: string;
+  custom_responses?: Record<string, string>;
+}
+
+export interface Teaser {
+  id: string;
+  room_id: string;
+  message: string;
+  teaser_type: 'generic' | 'personalized' | 'host_custom';
+  target_player_id: string | null;
+  sent_at: string;
+}
+
+export interface PlayerStats {
+  id: string;
+  player_id: string;
+  total_games: number;
+  total_points: number;
+  total_claims: number;
+  total_claims_won: number;
+  total_claims_lost: number;
+  total_bullshit_calls: number;
+  total_bullshit_correct: number;
+  current_streak: number;
+  longest_streak: number;
+  last_played_at: string | null;
+  updated_at: string;
 }
 
 export interface RoomSettings {

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Room,
   RoomPlayer,
@@ -9,6 +10,8 @@ import type {
   ClaimWithContext,
   PlayerScore,
 } from '@chaos-agent/shared';
+
+const SESSION_KEY = 'chaos_agent_session';
 
 interface SessionState {
   // Identity
@@ -69,8 +72,14 @@ const initialState = {
 export const useSessionStore = create<SessionState>((set, get) => ({
   ...initialState,
 
-  setIdentity: (playerId, roomPlayerId, roomId, nickname, isHost) =>
-    set({ playerId, roomPlayerId, roomId, nickname, isHost }),
+  setIdentity: (playerId, roomPlayerId, roomId, nickname, isHost) => {
+    set({ playerId, roomPlayerId, roomId, nickname, isHost });
+    // Persist session for auto-rejoin
+    AsyncStorage.setItem(SESSION_KEY, JSON.stringify({
+      playerId, roomPlayerId, roomId, nickname, isHost,
+      code: null, // Will be set when room state comes in
+    })).catch(() => {});
+  },
 
   updateFromPoll: (state) => {
     const prev = get();
@@ -94,10 +103,26 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       _lastFlashId: newFlashId,
       _lastPollId: newPollId,
     });
+
+    // Update persisted session with room code for rejoin
+    if (state.room?.code) {
+      const identity = get();
+      AsyncStorage.setItem(SESSION_KEY, JSON.stringify({
+        playerId: identity.playerId,
+        roomPlayerId: identity.roomPlayerId,
+        roomId: identity.roomId,
+        nickname: identity.nickname,
+        isHost: identity.isHost,
+        code: state.room.code,
+      })).catch(() => {});
+    }
   },
 
   dismissFlash: () => set({ flashDismissed: true }),
   dismissPoll: () => set({ pollDismissed: true }),
 
-  reset: () => set(initialState),
+  reset: () => {
+    set(initialState);
+    AsyncStorage.removeItem(SESSION_KEY).catch(() => {});
+  },
 }));

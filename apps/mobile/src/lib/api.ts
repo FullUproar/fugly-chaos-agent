@@ -20,6 +20,18 @@ import type {
   SendSignalResponse,
   SubmitPollVoteRequest,
   SubmitPollVoteResponse,
+  CreateEventRequest,
+  CreateEventResponse,
+  InvitePlayerRequest,
+  InvitePlayerResponse,
+  RespondInviteRequest,
+  RespondInviteResponse,
+  EventStateResponse,
+  StartIntermissionRequest,
+  StartIntermissionResponse,
+  EndIntermissionRequest,
+  EndIntermissionResponse,
+  PlayerStatsResponse,
 } from '@chaos-agent/shared';
 
 async function invoke<T>(functionName: string, body?: Record<string, unknown>): Promise<T> {
@@ -87,4 +99,26 @@ export const api = {
 
   submitPollVote: (req: SubmitPollVoteRequest) =>
     invoke<SubmitPollVoteResponse>('submit-poll-vote', { ...req }),
+
+  // Event lifecycle
+  createEvent: (req: CreateEventRequest) =>
+    invoke<CreateEventResponse>('create-event', { ...req }),
+
+  invitePlayer: (req: InvitePlayerRequest) =>
+    invoke<InvitePlayerResponse>('invite-player', { ...req }),
+
+  respondInvite: (req: RespondInviteRequest) =>
+    invoke<RespondInviteResponse>('respond-invite', { ...req }),
+
+  getEventState: (roomId: string) =>
+    invoke<EventStateResponse>('event-state', { room_id: roomId }),
+
+  startIntermission: (req: StartIntermissionRequest) =>
+    invoke<StartIntermissionResponse>('start-intermission', { ...req }),
+
+  endIntermission: (req: EndIntermissionRequest) =>
+    invoke<EndIntermissionResponse>('end-intermission', { ...req }),
+
+  getPlayerStats: () =>
+    invoke<PlayerStatsResponse>('player-stats', {}),
 };
