@@ -3,12 +3,14 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   ActivityIndicator, StyleSheet, Switch,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { GAME_TYPE_OPTIONS } from '@chaos-agent/shared';
 import type { GameType } from '@chaos-agent/shared';
 import { ensureAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useSessionStore } from '@/stores/session-store';
+import { showToast } from '@/components/Toast';
 import { colors } from '@/theme/colors';
 
 export default function PlanNightScreen() {
@@ -23,8 +25,10 @@ export default function PlanNightScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const setIdentity = useSessionStore((s) => s.setIdentity);
+  const insets = useSafeAreaInsets();
 
   const handleCreate = async () => {
+    if (loading) return;
     if (!nickname.trim()) {
       setError('Enter your nickname');
       return;
@@ -56,14 +60,20 @@ export default function PlanNightScreen() {
       setIdentity(playerId, res.room_player_id, res.room_id, nickname.trim(), true);
       router.replace(`/room/${res.code}/lobby`);
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      setError(msg);
+      showToast(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.heading}>Plan a Night</Text>
       <Text style={styles.subheading}>Set the date. Invite the squad. Build the tension.</Text>
 
@@ -166,7 +176,7 @@ export default function PlanNightScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <TouchableOpacity
-        style={styles.createButton}
+        style={[styles.createButton, loading && styles.buttonDisabled]}
         onPress={handleCreate}
         disabled={loading}
         activeOpacity={0.8}
@@ -185,26 +195,27 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 24, paddingBottom: 48 },
   heading: { fontSize: 28, fontWeight: '900', color: colors.text, marginBottom: 4 },
-  subheading: { fontSize: 14, color: colors.textSecondary, marginBottom: 32 },
+  subheading: { fontSize: 15, color: colors.textSecondary, marginBottom: 32 },
 
   label: {
-    fontSize: 12, fontWeight: '600', color: colors.textSecondary,
+    fontSize: 14, fontWeight: '600', color: colors.textSecondary,
     letterSpacing: 1, marginBottom: 8, marginTop: 8,
   },
   input: {
     backgroundColor: colors.surface, borderRadius: 10, padding: 16,
     color: colors.text, fontSize: 16, borderWidth: 1,
-    borderColor: colors.surfaceBorder, marginBottom: 16,
+    borderColor: colors.surfaceBorder, marginBottom: 16, minHeight: 52,
   },
   descInput: { minHeight: 80, textAlignVertical: 'top' },
 
   gameTypes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 50,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surfaceBorder,
+    minHeight: 44, justifyContent: 'center',
   },
   chipSelected: { backgroundColor: colors.accentBg, borderColor: colors.accent },
-  chipText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  chipText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
   chipTextSelected: { color: colors.accent },
 
   dateRow: { flexDirection: 'row', gap: 12 },
@@ -215,22 +226,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: colors.surface, borderRadius: 10, padding: 16,
     borderWidth: 1, borderColor: colors.surfaceBorder, marginBottom: 12,
+    minHeight: 64,
   },
   toggleInfo: { flex: 1, marginRight: 12 },
-  toggleLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
-  toggleDesc: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  toggleLabel: { fontSize: 16, fontWeight: '600', color: colors.text },
+  toggleDesc: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
 
   ahqHint: {
     backgroundColor: colors.surface, borderRadius: 10, padding: 16,
     borderWidth: 1, borderColor: colors.surfaceBorder, marginTop: 8, marginBottom: 24,
   },
-  ahqText: { fontSize: 13, color: colors.textMuted, fontStyle: 'italic', lineHeight: 18 },
+  ahqText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic', lineHeight: 20 },
 
   error: { color: colors.error, fontSize: 14, marginBottom: 16 },
 
   createButton: {
     backgroundColor: colors.accent, paddingVertical: 20, borderRadius: 50,
-    alignItems: 'center',
+    alignItems: 'center', minHeight: 60,
   },
+  buttonDisabled: { opacity: 0.6 },
   createButtonText: { fontSize: 18, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
 });

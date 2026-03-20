@@ -2,19 +2,17 @@ import { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import type { ClaimWithContext, VoteType } from '@chaos-agent/shared';
 import { colors } from '@/theme/colors';
-
-// import * as Haptics from 'expo-haptics'; // Needs native rebuild
-const Haptics = {
-  notificationAsync: () => {},
-  impactAsync: () => {},
-  NotificationFeedbackType: { Warning: 'warning', Error: 'error', Success: 'success' },
-  ImpactFeedbackStyle: { Heavy: 'heavy', Medium: 'medium', Light: 'light' },
-} as any;
+import { triggerHaptic } from '@/lib/haptics';
+import { playSound } from '@/lib/sounds';
 
 interface Props {
   claim: ClaimWithContext;
   onVote: (claimId: string, vote: VoteType) => void;
   onDismiss: () => void;
+  /** When true, vote buttons are hidden and NUDGE button is shown instead */
+  hasVoted?: boolean;
+  onNudge?: (claimId: string) => void;
+  nudgeMessage?: string | null;
 }
 
 const VOTE_WINDOW_SECONDS = 180;
@@ -32,7 +30,7 @@ const ALERT_MESSAGES = [
   'dares you to challenge...',
 ];
 
-export function ClaimAlert({ claim, onVote, onDismiss }: Props) {
+export function ClaimAlert({ claim, onVote, onDismiss, hasVoted, onNudge, nudgeMessage }: Props) {
   const slideAnim = useRef(new Animated.Value(-300)).current;
   const barWidth = useRef(new Animated.Value(1)).current;
   const [timeLeft, setTimeLeft] = useState(VOTE_WINDOW_SECONDS);
@@ -74,7 +72,8 @@ export function ClaimAlert({ claim, onVote, onDismiss }: Props) {
   }, [barWidth]);
 
   useEffect(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    triggerHaptic('claimAlert');
+    playSound('CLAIM_ALERT');
 
     Animated.spring(slideAnim, {
       toValue: 0,
@@ -88,7 +87,7 @@ export function ClaimAlert({ claim, onVote, onDismiss }: Props) {
   }, [slideAnim, onDismiss]);
 
   const handleVote = (vote: VoteType) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerHaptic('signalSent');
     onVote(claim.claim.id, vote);
     Animated.timing(slideAnim, {
       toValue: -300,
@@ -98,7 +97,7 @@ export function ClaimAlert({ claim, onVote, onDismiss }: Props) {
   };
 
   const isUrgent = timeLeft <= 30;
-  const barColor = isUrgent ? colors.error : colors.accent;
+  const barColor = hasVoted ? colors.textMuted : (isUrgent ? colors.error : colors.accent);
 
   return (
     <Animated.View style={[styles.container, { transform: [{ translateY: slideAnim }] }]}>
@@ -115,23 +114,45 @@ export function ClaimAlert({ claim, onVote, onDismiss }: Props) {
           </View>
         </View>
 
-        {/* Vote buttons */}
-        <View style={styles.buttons}>
-          <TouchableOpacity
-            style={styles.acceptButton}
-            onPress={() => handleVote('ACCEPT')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.acceptText}>LEGIT</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.bsButton}
-            onPress={() => handleVote('BULLSHIT')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.bsText}>BULLSHIT</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Vote buttons OR Nudge button */}
+        {!hasVoted ? (
+          <View style={styles.buttons}>
+            <TouchableOpacity
+              style={styles.acceptButton}
+              onPress={() => handleVote('ACCEPT')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.acceptText}>LEGIT</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.bsButton}
+              onPress={() => handleVote('BULLSHIT')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.bsText}>BULLSHIT</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.nudgeRow}>
+            <Text style={styles.waitingText}>Waiting for others...</Text>
+            {onNudge && (
+              <TouchableOpacity
+                style={styles.nudgeButton}
+                onPress={() => onNudge(claim.claim.id)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.nudgeButtonText}>NUDGE</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Nudge message toast */}
+        {nudgeMessage && (
+          <View style={styles.nudgeMessageContainer}>
+            <Text style={styles.nudgeMessageText}>{nudgeMessage}</Text>
+          </View>
+        )}
 
         {/* Decay bar at bottom */}
         <View style={styles.barTrack}>
@@ -153,7 +174,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 100,
     padding: 12,
-    paddingTop: 50,
+    paddingTop: 60,
   },
   card: {
     backgroundColor: colors.surface,
@@ -192,12 +213,54 @@ const styles = StyleSheet.create({
   buttons: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
   acceptButton: {
     flex: 1, backgroundColor: '#0A1A0F', paddingVertical: 16, borderRadius: 50,
-    alignItems: 'center', borderWidth: 2, borderColor: colors.success,
+    alignItems: 'center', borderWidth: 2, borderColor: colors.success, minHeight: 52,
   },
   acceptText: { fontSize: 16, fontWeight: '900', color: colors.success, letterSpacing: 2 },
   bsButton: {
     flex: 1, backgroundColor: '#1A0A0A', paddingVertical: 16, borderRadius: 50,
-    alignItems: 'center', borderWidth: 2, borderColor: colors.error,
+    alignItems: 'center', borderWidth: 2, borderColor: colors.error, minHeight: 52,
   },
   bsText: { fontSize: 16, fontWeight: '900', color: colors.error, letterSpacing: 2 },
+  nudgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  waitingText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    fontStyle: 'italic',
+    flex: 1,
+  },
+  nudgeButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.warning,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 50,
+    alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  nudgeButtonText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: colors.warning,
+    letterSpacing: 2,
+  },
+  nudgeMessageContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  nudgeMessageText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.highlight,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
 });

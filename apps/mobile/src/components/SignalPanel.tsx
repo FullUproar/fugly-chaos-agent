@@ -1,7 +1,10 @@
 import { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Modal, Animated, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RoomPlayer, SignalType } from '@chaos-agent/shared';
 import { colors } from '@/theme/colors';
+import { triggerHaptic } from '@/lib/haptics';
+import { playSound } from '@/lib/sounds';
 
 interface Props {
   visible: boolean;
@@ -50,13 +53,13 @@ const TARGET_RESPONSES = [
 ];
 
 function getResponse(type: SignalType): string {
-  const pools: Record<SignalType, string[]> = {
+  const pools: Record<string, string[]> = {
     shake_it_up: HYPE_RESPONSES,
     slow_your_roll: CHILL_RESPONSES,
     im_bored: BORED_RESPONSES,
     target_player: TARGET_RESPONSES,
   };
-  const pool = pools[type];
+  const pool = pools[type] ?? HYPE_RESPONSES;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -64,6 +67,7 @@ export function SignalPanel({ visible, players, myRoomPlayerId, onSend, onClose 
   const [showTargetPicker, setShowTargetPicker] = useState(false);
   const [response, setResponse] = useState<{ text: string; color: string } | null>(null);
   const responseOpacity = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
 
   const otherPlayers = players.filter((p) => p.id !== myRoomPlayerId);
 
@@ -82,6 +86,9 @@ export function SignalPanel({ visible, players, myRoomPlayerId, onSend, onClose 
   };
 
   const handleSignal = (type: SignalType) => {
+    triggerHaptic('signalSent');
+    playSound('SIGNAL_SENT');
+
     if (type === 'target_player') {
       setShowTargetPicker(true);
     } else {
@@ -106,7 +113,7 @@ export function SignalPanel({ visible, players, myRoomPlayerId, onSend, onClose 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose}>
-        <View style={styles.panel}>
+        <View style={[styles.panel, { paddingBottom: Math.max(40, insets.bottom + 16) }]}>
           {response ? (
             <Animated.View style={[styles.responseContainer, { opacity: responseOpacity }]}>
               <Text style={[styles.responseText, { color: response.color }]}>{response.text}</Text>
@@ -185,6 +192,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderWidth: 2,
     alignItems: 'center',
+    minHeight: 52,
+    justifyContent: 'center',
   },
   signalLabel: { fontSize: 16, fontWeight: '900', letterSpacing: 2 },
   playerButton: {
@@ -194,6 +203,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.error,
     alignItems: 'center',
+    minHeight: 52,
+    justifyContent: 'center',
   },
   playerName: { fontSize: 16, fontWeight: '700', color: colors.text },
   backButton: {
@@ -203,6 +214,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   backButtonText: { fontSize: 14, fontWeight: '700', color: colors.textMuted, letterSpacing: 1 },
   responseContainer: {

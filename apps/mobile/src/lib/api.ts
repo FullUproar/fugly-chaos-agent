@@ -32,6 +32,16 @@ import type {
   EndIntermissionRequest,
   EndIntermissionResponse,
   PlayerStatsResponse,
+  SendMessageRequest,
+  SendMessageResponse,
+  GetMessagesRequest,
+  GetMessagesResponse,
+  NudgeVotersRequest,
+  NudgeVotersResponse,
+  LinkAHQAccountRequest,
+  LinkAHQAccountResponse,
+  SyncToAHQResponse,
+  PlayerProfileResponse,
 } from '@chaos-agent/shared';
 
 async function invoke<T>(functionName: string, body?: Record<string, unknown>): Promise<T> {
@@ -137,4 +147,49 @@ export const api = {
 
   getMiniGameState: (roomId: string) =>
     invoke<Record<string, unknown>>('mini-game', { action: 'state', room_id: roomId }),
+
+  // Table Talk
+  sendMessage: (req: SendMessageRequest) =>
+    invoke<SendMessageResponse>('send-message', { ...req }),
+
+  getMessages: (req: GetMessagesRequest) =>
+    invoke<GetMessagesResponse>('get-messages', { ...req }),
+
+  // Photos
+  uploadPhoto: (req: { room_id: string; photo: string; mission_id?: string; caption?: string }) =>
+    invoke<{ photo_id: string; photo_url: string }>('upload-photo', { ...req }),
+
+  getPhotos: (roomId: string) =>
+    invoke<{ photos: Array<{ id: string; room_player_id: string; nickname: string; mission_id: string | null; caption: string | null; photo_url: string; created_at: string }> }>('get-photos', { room_id: roomId }),
+
+  // Nudge voters
+  nudgeVoters: (req: NudgeVotersRequest) =>
+    invoke<NudgeVotersResponse>('nudge-voters', { ...req }),
+
+  // Push notifications
+  registerPushToken: (req: { room_id: string; push_token: string }) =>
+    invoke<{ registered: boolean }>('register-push-token', { ...req }),
+
+  // Afterroar HQ integration
+  linkAHQAccount: (req: LinkAHQAccountRequest) =>
+    invoke<LinkAHQAccountResponse>('link-ahq-account', { ...req }),
+
+  syncToAHQ: (roomId: string) =>
+    invoke<SyncToAHQResponse>('sync-to-ahq', { room_id: roomId }),
+
+  getPlayerProfile: () =>
+    invoke<PlayerProfileResponse>('get-player-profile', {}),
+
+  // Teasers
+  generateTeasers: (eventId: string, mode: 'static' | 'ai' = 'static') =>
+    invoke<{ teasers_created: number; days_until_event: number; mode: string }>(
+      'generate-teasers', { event_id: eventId, mode },
+    ),
+
+  getTeasers: (eventId: string) =>
+    invoke<{
+      teasers: Array<{ id: string; message: string; teaser_type: string; sent_at: string }>;
+      days_until_event: number | null;
+      scheduled_at: string | null;
+    }>('get-teasers', { event_id: eventId }),
 };

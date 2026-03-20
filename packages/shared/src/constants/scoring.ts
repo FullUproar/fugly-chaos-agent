@@ -15,6 +15,7 @@ export const STANDING_MISSION_COUNT = 8;
 export const MAX_PLAYERS_FREE = 12;
 
 export const POLL_INTERVAL_MS = 3000;
+export const POLL_INTERVAL_PUSH_MS = 10000; // Reduced polling when push notifications are active
 
 // Flash mission timing
 export const FLASH_DURATION_MS = 75000; // 75 seconds

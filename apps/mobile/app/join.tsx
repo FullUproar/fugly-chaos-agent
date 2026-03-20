@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { isValidRoomCode } from '@chaos-agent/shared';
 import { ensureAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useSessionStore } from '@/stores/session-store';
+import { showToast } from '@/components/Toast';
 import { colors } from '@/theme/colors';
 
 export default function JoinRoomScreen() {
@@ -13,8 +15,10 @@ export default function JoinRoomScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const setIdentity = useSessionStore((s) => s.setIdentity);
+  const insets = useSafeAreaInsets();
 
   const handleJoin = async () => {
+    if (loading) return;
     const upperCode = code.toUpperCase().trim();
     if (!isValidRoomCode(upperCode)) {
       setError('Enter a valid 6-character room code');
@@ -32,14 +36,20 @@ export default function JoinRoomScreen() {
       setIdentity(playerId, res.room_player_id, res.room_id, nickname.trim(), false);
       router.replace(`/room/${upperCode}/lobby`);
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      setError(msg);
+      showToast(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.heading}>Join a Room</Text>
 
       <Text style={styles.label}>ROOM CODE</Text>
@@ -56,7 +66,7 @@ export default function JoinRoomScreen() {
 
       <Text style={styles.label}>YOUR NICKNAME</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, styles.nicknameInput]}
         placeholder="Snoozy, Big Dave, etc."
         placeholderTextColor={colors.textMuted}
         value={nickname}
@@ -66,34 +76,44 @@ export default function JoinRoomScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TouchableOpacity style={styles.joinButton} onPress={handleJoin} disabled={loading} activeOpacity={0.8}>
+      <TouchableOpacity
+        style={[styles.joinButton, loading && styles.buttonDisabled]}
+        onPress={handleJoin}
+        disabled={loading}
+        activeOpacity={0.8}
+      >
         {loading ? (
           <ActivityIndicator color={colors.accentText} />
         ) : (
           <Text style={styles.joinButtonText}>JOIN</Text>
         )}
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg, padding: 24 },
+  container: { flex: 1, backgroundColor: colors.bg },
+  content: { padding: 24 },
   heading: { fontSize: 24, fontWeight: '900', color: colors.text, marginBottom: 32 },
   label: {
-    fontSize: 12, fontWeight: '600', color: colors.textSecondary,
+    fontSize: 14, fontWeight: '600', color: colors.textSecondary,
     marginBottom: 8, letterSpacing: 1,
   },
   input: {
     backgroundColor: colors.surface, borderRadius: 10, padding: 16,
     color: colors.text, fontSize: 20, fontWeight: '600',
     borderWidth: 1, borderColor: colors.surfaceBorder,
-    marginBottom: 24, letterSpacing: 4,
+    marginBottom: 24, letterSpacing: 4, minHeight: 56,
+  },
+  nicknameInput: {
+    fontSize: 16, letterSpacing: 0,
   },
   error: { color: colors.error, fontSize: 14, marginBottom: 16 },
   joinButton: {
     backgroundColor: colors.accent, paddingVertical: 20, borderRadius: 50,
-    alignItems: 'center', marginTop: 8,
+    alignItems: 'center', marginTop: 8, minHeight: 60,
   },
+  buttonDisabled: { opacity: 0.6 },
   joinButtonText: { fontSize: 18, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
 });

@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   statsValue: { fontSize: 14, fontWeight: '700', color: colors.text },
   resumeButton: {
     backgroundColor: colors.accent, paddingHorizontal: 32, paddingVertical: 16,
-    borderRadius: 50,
+    borderRadius: 50, minHeight: 52,
   },
   resumeButtonText: { fontSize: 16, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
 });

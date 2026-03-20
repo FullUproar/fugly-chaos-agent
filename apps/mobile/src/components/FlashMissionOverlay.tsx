@@ -1,15 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Modal, Animated, StyleSheet } from 'react-native';
-// import * as Haptics from 'expo-haptics'; // Needs native rebuild
-const Haptics = {
-  notificationAsync: () => {},
-  impactAsync: () => {},
-  NotificationFeedbackType: { Warning: 'warning', Error: 'error', Success: 'success' },
-  ImpactFeedbackStyle: { Heavy: 'heavy', Medium: 'medium', Light: 'light' },
-} as any;
 import type { Mission } from '@chaos-agent/shared';
 import { HourglassTimer } from './HourglassTimer';
 import { colors } from '@/theme/colors';
+import { triggerHaptic } from '@/lib/haptics';
+import { playSound } from '@/lib/sounds';
 
 interface Props {
   mission: Mission;
@@ -29,11 +24,9 @@ export function FlashMissionOverlay({ mission, onClaim, onDismiss }: Props) {
   const progressAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Heavy haptic burst on flash arrival
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 100);
-    setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
-    setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), 300);
+    // Heavy haptic burst + sound on flash arrival
+    triggerHaptic('flashMission');
+    playSound('FLASH_MISSION');
   }, []);
 
   useEffect(() => {
@@ -180,15 +173,19 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 50,
     alignItems: 'center',
+    minHeight: 56,
+    justifyContent: 'center',
   },
   claimButtonText: { fontSize: 20, fontWeight: '900', color: colors.accentText, letterSpacing: 3 },
-  claimedText: { fontSize: 14, fontWeight: '700', color: colors.warning, textAlign: 'center', letterSpacing: 1 },
+  claimedText: { fontSize: 15, fontWeight: '700', color: colors.warning, textAlign: 'center', letterSpacing: 1 },
   dismissButton: {
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 50,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   dismissButtonText: { fontSize: 14, fontWeight: '700', color: colors.textMuted, letterSpacing: 1 },
 });

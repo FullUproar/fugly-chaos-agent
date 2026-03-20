@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { View, Text, Pressable, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { GAME_TYPE_OPTIONS } from '@chaos-agent/shared';
 import type { GameType } from '@chaos-agent/shared';
 import { ensureAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useSessionStore } from '@/stores/session-store';
+import { showToast } from '@/components/Toast';
 import { colors } from '@/theme/colors';
 
 export default function CreateRoomScreen() {
@@ -15,8 +17,10 @@ export default function CreateRoomScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const setIdentity = useSessionStore((s) => s.setIdentity);
+  const insets = useSafeAreaInsets();
 
   const handleCreate = async () => {
+    if (loading) return;
     if (!nickname.trim()) {
       setError('Enter your nickname');
       return;
@@ -33,14 +37,20 @@ export default function CreateRoomScreen() {
       setIdentity(playerId, res.room_player_id, res.room_id, nickname.trim(), true);
       router.replace(`/room/${res.code}/lobby`);
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      setError(msg);
+      showToast(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.heading}>What are you playing?</Text>
 
       <View style={styles.options}>
@@ -78,7 +88,12 @@ export default function CreateRoomScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TouchableOpacity style={styles.createButton} onPress={handleCreate} disabled={loading} activeOpacity={0.8}>
+      <TouchableOpacity
+        style={[styles.createButton, loading && styles.buttonDisabled]}
+        onPress={handleCreate}
+        disabled={loading}
+        activeOpacity={0.8}
+      >
         {loading ? (
           <ActivityIndicator color={colors.accentText} />
         ) : (
@@ -96,25 +111,26 @@ const styles = StyleSheet.create({
   options: { gap: 12, marginBottom: 24 },
   option: {
     padding: 16, borderRadius: 10, backgroundColor: colors.surface,
-    borderWidth: 1, borderColor: colors.surfaceBorder,
+    borderWidth: 1, borderColor: colors.surfaceBorder, minHeight: 60,
   },
   optionSelected: { borderColor: colors.accent, backgroundColor: colors.accentBg },
   optionLabel: { fontSize: 16, fontWeight: '600', color: colors.text },
   optionLabelSelected: { color: colors.accent },
-  optionDesc: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  optionDesc: { fontSize: 14, color: colors.textSecondary, marginTop: 2 },
   label: {
-    fontSize: 12, fontWeight: '600', color: colors.textSecondary,
+    fontSize: 14, fontWeight: '600', color: colors.textSecondary,
     letterSpacing: 1, marginBottom: 8,
   },
   input: {
     backgroundColor: colors.surface, borderRadius: 10, padding: 16,
     color: colors.text, fontSize: 16, borderWidth: 1,
-    borderColor: colors.surfaceBorder, marginBottom: 24,
+    borderColor: colors.surfaceBorder, marginBottom: 24, minHeight: 52,
   },
   error: { color: colors.error, fontSize: 14, marginBottom: 16 },
   createButton: {
     backgroundColor: colors.accent, paddingVertical: 20, borderRadius: 50,
-    alignItems: 'center',
+    alignItems: 'center', minHeight: 60,
   },
+  buttonDisabled: { opacity: 0.6 },
   createButtonText: { fontSize: 18, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
 });

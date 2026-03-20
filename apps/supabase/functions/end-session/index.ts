@@ -47,7 +47,40 @@ Deno.serve(async (req) => {
       .update({ status: 'ENDED', ended_at: new Date().toISOString() })
       .eq('id', room_id);
 
-    return new Response(JSON.stringify({ ended: true }), {
+    // Sync stats to Afterroar HQ for linked players
+    let ahqSynced = 0;
+    try {
+      // Check if any players in this room are linked to AHQ
+      const { data: linkedPlayers } = await supabase
+        .from('room_players')
+        .select('id, ahq_user_id')
+        .eq('room_id', room_id)
+        .not('ahq_user_id', 'is', null);
+
+      if (linkedPlayers && linkedPlayers.length > 0) {
+        // Call sync-to-ahq internally via fetch to the same Supabase instance
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+        const syncRes = await fetch(`${supabaseUrl}/functions/v1/sync-to-ahq`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ room_id }),
+        });
+
+        if (syncRes.ok) {
+          const syncData = await syncRes.json();
+          ahqSynced = syncData.synced_players ?? 0;
+        }
+      }
+    } catch {
+      // AHQ sync failure is non-critical — don't block the end-session response
+    }
+
+    return new Response(JSON.stringify({ ended: true, ahq_synced: ahqSynced }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

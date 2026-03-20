@@ -3,7 +3,9 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
+import { showToast } from './Toast';
 import { DrawingCanvas } from './DrawingCanvas';
 import { colors } from '@/theme/colors';
 
@@ -43,6 +45,7 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
   const [captionInput, setCaptionInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState('');
+  const insets = useSafeAreaInsets();
 
   // Poll mini-game state
   const fetchState = useCallback(async () => {
@@ -87,7 +90,7 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
       await api.submitMiniGame(game.id, captionInput.trim());
       setCaptionInput('');
       fetchState();
-    } catch { /* ignore */ }
+    } catch { showToast('Submit failed.'); }
     finally { setSubmitting(false); }
   };
 
@@ -97,17 +100,17 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
     try {
       await api.submitMiniGame(game.id, drawing);
       fetchState();
-    } catch { /* ignore */ }
+    } catch { showToast('Submit failed.'); }
     finally { setSubmitting(false); }
   };
 
   const handleHotTakeVote = async (opinion: 'agree' | 'disagree') => {
-    if (!game) return;
+    if (!game || submitting) return;
     setSubmitting(true);
     try {
       await api.submitMiniGame(game.id, opinion);
       fetchState();
-    } catch { /* ignore */ }
+    } catch { showToast('Vote failed.'); }
     finally { setSubmitting(false); }
   };
 
@@ -116,16 +119,16 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
     try {
       await api.voteMiniGame(game.id, submissionId);
       fetchState();
-    } catch { /* ignore */ }
+    } catch { showToast('Vote failed.'); }
   };
 
   const handleLieDetectorVote = async (verdict: 'truth' | 'bluff') => {
-    if (!game) return;
+    if (!game || submitting) return;
     setSubmitting(true);
     try {
       await api.submitMiniGame(game.id, verdict);
       fetchState();
-    } catch { /* ignore */ }
+    } catch { showToast('Submit failed.'); }
     finally { setSubmitting(false); }
   };
 
@@ -290,6 +293,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(17, 24, 39, 0.97)',
     padding: 24,
+    paddingTop: 60,
     zIndex: 90,
   },
   header: {
@@ -316,7 +320,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: colors.accent, paddingVertical: 16, borderRadius: 50,
-    alignItems: 'center',
+    alignItems: 'center', minHeight: 52,
   },
   submitButtonText: { fontSize: 16, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
   buttonDisabled: { opacity: 0.5 },
@@ -325,12 +329,12 @@ const styles = StyleSheet.create({
   hotTakeButtons: { flexDirection: 'row', gap: 16, marginTop: 24 },
   agreeButton: {
     flex: 1, backgroundColor: '#064e3b', paddingVertical: 24, borderRadius: 50,
-    alignItems: 'center', borderWidth: 2, borderColor: colors.success,
+    alignItems: 'center', borderWidth: 2, borderColor: colors.success, minHeight: 60,
   },
   agreeText: { fontSize: 18, fontWeight: '900', color: colors.success, letterSpacing: 2 },
   disagreeButton: {
     flex: 1, backgroundColor: '#7f1d1d', paddingVertical: 24, borderRadius: 50,
-    alignItems: 'center', borderWidth: 2, borderColor: colors.error,
+    alignItems: 'center', borderWidth: 2, borderColor: colors.error, minHeight: 60,
   },
   disagreeText: { fontSize: 18, fontWeight: '900', color: colors.error, letterSpacing: 2 },
 
@@ -364,7 +368,7 @@ const styles = StyleSheet.create({
   hotTakeResult: { fontSize: 15, color: colors.textSecondary, marginBottom: 4 },
   dismissButton: {
     backgroundColor: colors.accent, paddingHorizontal: 32, paddingVertical: 16,
-    borderRadius: 50,
+    borderRadius: 50, minHeight: 52,
   },
   dismissText: { fontSize: 16, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
 });

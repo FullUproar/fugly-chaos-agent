@@ -19,6 +19,8 @@ import type {
   Teaser,
   PlayerStats,
   InviteStatus,
+  Message,
+  MessageType,
 } from './database';
 
 // POST /create-room
@@ -56,6 +58,7 @@ export interface RoomStateResponse {
   active_claims: ClaimWithContext[];
   all_claims: ClaimWithContext[];
   scores: PlayerScore[];
+  recent_messages: Message[];
 }
 
 export interface ClaimWithContext {
@@ -308,6 +311,117 @@ export interface MiniGameStateResponse {
   votes?: Array<{ room_player_id: string; voted_for_submission_id: string }>;
   my_submission?: string | null;
   my_vote?: string | null;
+}
+
+// POST /send-message
+export interface SendMessageRequest {
+  room_id: string;
+  content: string;
+  recipient_id?: string; // null/omitted = room-wide, set = DM
+  message_type?: MessageType;
+}
+export interface SendMessageResponse {
+  message_id: string;
+  created_at: string;
+}
+
+// POST /get-messages
+export interface GetMessagesRequest {
+  room_id: string;
+  since?: string; // ISO timestamp — only messages after this
+  limit?: number; // max 100, default 50
+}
+export interface GetMessagesResponse {
+  messages: Message[];
+}
+
+// POST /nudge-voters
+export interface NudgeVotersRequest {
+  claim_id: string;
+}
+export interface NudgeVotersResponse {
+  nudge_id: string;
+  message: string;
+  tier: number;
+  cooldown_remaining: number;
+}
+
+// POST /link-ahq-account
+export interface LinkAHQAccountRequest {
+  ahq_token: string;
+  room_player_id?: string;
+}
+export interface LinkAHQAccountResponse {
+  linked: boolean;
+  display_name: string;
+  chaos_title: string;
+  crews: Array<{ id: string; name: string }>;
+}
+
+// POST /sync-to-ahq
+export interface SyncToAHQRequest {
+  room_id: string;
+}
+export interface SyncToAHQResponse {
+  synced_players: number;
+  session_history_ids: string[];
+}
+
+// POST /get-player-profile
+export interface PlayerProfileResponse {
+  profile: {
+    id: string;
+    ahq_user_id: string;
+    display_name: string;
+    chaos_title: string;
+    total_games_played: number;
+    total_points_earned: number;
+    total_claims_made: number;
+    total_claims_won: number;
+    total_bullshit_calls: number;
+    total_bullshit_correct: number;
+    win_rate: number;
+    bs_accuracy: number;
+    claim_success_rate: number;
+  } | null;
+  recent_sessions: Array<{
+    id: string;
+    room_id: string;
+    nickname: string;
+    final_score: number;
+    final_rank: number;
+    highlights: Array<{ type: string; description: string }>;
+    played_at: string;
+    ahq_crew_id: string | null;
+    ahq_game_night_id: string | null;
+  }>;
+}
+
+// POST /generate-teasers
+export interface GenerateTeasersRequest {
+  event_id: string;
+  mode?: 'static' | 'ai';
+}
+export interface GenerateTeasersResponse {
+  teasers_created: number;
+  days_until_event: number;
+  mode: string;
+}
+
+// POST /get-teasers
+export interface GetTeasersRequest {
+  event_id: string;
+}
+export interface GetTeasersResponse {
+  teasers: Array<{
+    id: string;
+    message: string;
+    teaser_type: string;
+    target_player_id: string | null;
+    sent_at: string;
+  }>;
+  days_until_event: number | null;
+  scheduled_at: string | null;
 }
 
 // Generic error response

@@ -1,13 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, Animated, StyleSheet, Dimensions } from 'react-native';
-// import * as Haptics from 'expo-haptics'; // Needs native rebuild
-const Haptics = {
-  notificationAsync: () => {},
-  impactAsync: () => {},
-  NotificationFeedbackType: { Warning: 'warning', Error: 'error', Success: 'success' },
-  ImpactFeedbackStyle: { Heavy: 'heavy', Medium: 'medium', Light: 'light' },
-} as any;
 import { colors } from '@/theme/colors';
+import { triggerHaptic } from '@/lib/haptics';
+import { playSound } from '@/lib/sounds';
 
 interface VoteReveal {
   nickname: string;
@@ -50,10 +45,10 @@ const PASSED_MESSAGES = [
   'COLD BLOODED!',
   'MINT!',
   'CHEF\'S KISS!',
-  'SUGOI! (すごい!)',
+  'SUGOI! (\u3059\u3054\u3044!)',
   'MAGNIFIQUE!',
   'BRAVO!',
-  'OLÉ!',
+  'OL\u00c9!',
   'WUNDERBAR!',
   'THE RECEIPTS CHECK OUT!',
   'CASE CLOSED!',
@@ -92,7 +87,7 @@ const FAILED_MESSAGES = [
   'OBJECTION SUSTAINED!',
   'THAT DOG WON\'T HUNT!',
   'SWING AND A MISS!',
-  'USO DA! (嘘だ!)',
+  'USO DA! (\u5618\u3060!)',
   'MENTIRA!',
   'QUATSCH!',
   'CONNERIES!',
@@ -171,15 +166,13 @@ export function VerdictOverlay({ visible, missionTitle, claimantNickname, votes,
     const timer = setTimeout(() => {
       setPhase('result');
 
-      // Haptic on reveal
+      // Haptic + sound on reveal
       if (!passed) {
-        // Heavy burst for BULLSHIT
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 100);
-        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
+        triggerHaptic('verdictBullshit');
+        playSound('VERDICT_BULLSHIT');
       } else {
-        // Success haptic for LEGIT
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        triggerHaptic('verdictReveal');
+        playSound('VERDICT_LEGIT');
       }
 
       // Animate the result

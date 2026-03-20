@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import type { Poll } from '@chaos-agent/shared';
 import { colors } from '@/theme/colors';
+import { triggerHaptic } from '@/lib/haptics';
+import { playSound } from '@/lib/sounds';
 
 interface Props {
   poll: Poll & { votes?: Array<{ room_player_id: string; answer: string }> };
@@ -12,6 +14,11 @@ interface Props {
 
 export function PollOverlay({ poll, myVote, onVote, onDismiss }: Props) {
   const [justVoted, setJustVoted] = useState(false);
+
+  useEffect(() => {
+    triggerHaptic('poll');
+    playSound('POLL');
+  }, []);
 
   const options: string[] = typeof poll.options === 'string'
     ? JSON.parse(poll.options)
@@ -118,6 +125,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
+    minHeight: 52,
   },
   optionSelected: {
     borderColor: colors.highlight,

@@ -1,5 +1,6 @@
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { getAdminClient, getAuthUserId } from '../_shared/supabase-client.ts';
+import { sendPush } from '../_shared/push.ts';
 
 const FALSE_CLAIM_PENALTY = 5;
 const VOTE_WINDOW_SECONDS = 60; // Non-voters auto-accept after this
@@ -178,6 +179,18 @@ Deno.serve(async (req) => {
             .eq('id', claim.room_player_id);
         }
       }
+    }
+
+    // Push VERDICT notification when claim resolves
+    if (resolved) {
+      const verdictText = claimStatus === 'VOTE_PASSED' ? 'LEGIT' : 'BULLSHIT';
+      sendPush({
+        room_id: mission.room_id,
+        title: '\u{2696}\u{FE0F} Verdict!',
+        body: `\u{2696}\u{FE0F} The verdict is in: ${verdictText}!`,
+        data: { claim_id: claim_id, verdict: verdictText },
+        category: 'VERDICT',
+      });
     }
 
     return new Response(JSON.stringify({

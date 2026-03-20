@@ -1,5 +1,6 @@
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { getAdminClient, getAuthUserId } from '../_shared/supabase-client.ts';
+import { sendPush } from '../_shared/push.ts';
 
 Deno.serve(async (req) => {
   const corsResponse = handleCors(req);
@@ -20,7 +21,7 @@ Deno.serve(async (req) => {
     // Fetch mission
     const { data: mission } = await supabase
       .from('missions')
-      .select('id, room_id, room_player_id, points, status, type, flash_type, expires_at')
+      .select('id, room_id, room_player_id, points, status, type, flash_type, expires_at, title')
       .eq('id', mission_id)
       .single();
 
@@ -34,7 +35,7 @@ Deno.serve(async (req) => {
     // Verify player is in the room
     const { data: roomPlayer } = await supabase
       .from('room_players')
-      .select('id')
+      .select('id, nickname')
       .eq('room_id', mission.room_id)
       .eq('player_id', userId)
       .single();
@@ -133,6 +134,16 @@ Deno.serve(async (req) => {
 
       if (claimError) throw claimError;
 
+      // Push CLAIM notification to all other players
+      sendPush({
+        room_id: mission.room_id,
+        exclude_player_id: userId,
+        title: '\u{1F3AF} Claim!',
+        body: `\u{1F3AF} ${roomPlayer.nickname} claims "${mission.title}" \u{2014} LEGIT or BULLSHIT?`,
+        data: { claim_id: claim.id, mission_id: mission.id },
+        category: 'CLAIM',
+      });
+
       return new Response(JSON.stringify({ claim_id: claim.id, claimed_at: claim.claimed_at }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -189,6 +200,16 @@ Deno.serve(async (req) => {
         .from('missions')
         .update({ status: 'CLAIMED' })
         .eq('id', mission_id);
+
+      // Push CLAIM notification to all other players
+      sendPush({
+        room_id: mission.room_id,
+        exclude_player_id: userId,
+        title: '\u{1F3AF} Claim!',
+        body: `\u{1F3AF} ${roomPlayer.nickname} claims "${mission.title}" \u{2014} LEGIT or BULLSHIT?`,
+        data: { claim_id: claim.id, mission_id: mission.id },
+        category: 'CLAIM',
+      });
 
       return new Response(JSON.stringify({ claim_id: claim.id, claimed_at: claim.claimed_at }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

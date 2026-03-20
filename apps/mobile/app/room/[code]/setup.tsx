@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { View, Text, Pressable, TouchableOpacity, TextInput, ScrollView, Switch, ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, TextInput, ScrollView, Switch, ActivityIndicator, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { STANDARD_QUESTIONS, WILDCARD_QUESTIONS } from '@chaos-agent/shared';
 import type { SetupAnswers, GameType } from '@chaos-agent/shared';
 import { api } from '@/lib/api';
 import { useSessionStore } from '@/stores/session-store';
 import { usePolling } from '@/hooks/use-polling';
+import { showToast } from '@/components/Toast';
 import { colors } from '@/theme/colors';
 
 export default function SetupScreen() {
@@ -13,6 +15,7 @@ export default function SetupScreen() {
   const { roomId, room } = useSessionStore();
   const gameType = (room?.game_type ?? 'party_game') as GameType;
   const wildcardQ = WILDCARD_QUESTIONS[gameType];
+  const insets = useSafeAreaInsets();
 
   const [answers, setAnswers] = useState<Partial<SetupAnswers>>({
     chaos_comfort: 'moderate',
@@ -42,7 +45,7 @@ export default function SetupScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!roomId) return;
+    if (!roomId || loading) return;
     setLoading(true);
     try {
       const res = await api.submitSetup({
@@ -51,8 +54,8 @@ export default function SetupScreen() {
       });
       setSubmitted(true);
       setWaitingOn(res.waiting_on);
-    } catch {
-      // Will retry via polling
+    } catch (e) {
+      showToast((e as Error).message || 'Setup failed. Try again.');
     } finally {
       setLoading(false);
     }
@@ -60,7 +63,7 @@ export default function SetupScreen() {
 
   if (submitted) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.waitingBox}>
           <Text style={styles.waitingTitle}>You're locked in</Text>
           <ActivityIndicator color={colors.accent} size="large" style={{ marginVertical: 24 }} />
@@ -77,8 +80,11 @@ export default function SetupScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.heading}>Quick Setup</Text>
       <Text style={styles.subheading}>
         This helps the AI craft perfect missions for you
@@ -137,7 +143,12 @@ export default function SetupScreen() {
         />
       </View>
 
-      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading} activeOpacity={0.8}>
+      <TouchableOpacity
+        style={[styles.submitButton, loading && styles.buttonDisabled]}
+        onPress={handleSubmit}
+        disabled={loading}
+        activeOpacity={0.8}
+      >
         {loading ? (
           <ActivityIndicator color={colors.accentText} />
         ) : (
@@ -145,7 +156,6 @@ export default function SetupScreen() {
         )}
       </TouchableOpacity>
     </ScrollView>
-    </KeyboardAvoidingView>
   );
 }
 
@@ -153,26 +163,29 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 24, paddingBottom: 48 },
   heading: { fontSize: 24, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  subheading: { fontSize: 14, color: colors.textSecondary, marginBottom: 28 },
+  subheading: { fontSize: 15, color: colors.textSecondary, marginBottom: 28 },
   questionBlock: { marginBottom: 24 },
   questionLabel: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 12 },
   selectOptions: { gap: 8 },
   selectOption: {
     padding: 14, borderRadius: 10, backgroundColor: colors.surface,
-    borderWidth: 1, borderColor: colors.surfaceBorder,
+    borderWidth: 1, borderColor: colors.surfaceBorder, minHeight: 48,
+    justifyContent: 'center',
   },
   selectOptionActive: { borderColor: colors.accent, backgroundColor: colors.accentBg },
-  selectOptionText: { fontSize: 14, color: colors.textSecondary },
+  selectOptionText: { fontSize: 15, color: colors.textSecondary },
   selectOptionTextActive: { color: colors.accent, fontWeight: '600' },
   toggleRow: { flexDirection: 'row', alignItems: 'center' },
   textInput: {
     backgroundColor: colors.surface, borderRadius: 10, padding: 16,
     color: colors.text, fontSize: 16, borderWidth: 1, borderColor: colors.surfaceBorder,
+    minHeight: 52,
   },
   submitButton: {
     backgroundColor: colors.accent, paddingVertical: 20, borderRadius: 50,
-    alignItems: 'center', marginTop: 8,
+    alignItems: 'center', marginTop: 8, minHeight: 60,
   },
+  buttonDisabled: { opacity: 0.6 },
   submitButtonText: { fontSize: 18, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
   waitingBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   waitingTitle: { fontSize: 28, fontWeight: '800', color: colors.accent, letterSpacing: 2 },

@@ -12,6 +12,12 @@
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0A"
     },
+    "notification": {
+      "icon": "./assets/icon.png",
+      "color": "#FF6B35",
+      "androidMode": "default",
+      "androidCollapsedTitle": "Chaos Agent"
+    },
     "android": {
       "package": "com.fugly.chaosagent",
       "adaptiveIcon": {
@@ -21,7 +27,9 @@
       }
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-notifications",
+      "expo-sharing"
     ],
     "extra": {
       "router": {},

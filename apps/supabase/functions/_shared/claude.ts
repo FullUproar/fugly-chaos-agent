@@ -21,3 +21,21 @@ export async function generateText(prompt: string, maxTokens = 2000): Promise<st
   if (block.type !== 'text') throw new Error('Unexpected response type');
   return block.text;
 }
+
+export async function generateWithSystem(
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 4000,
+): Promise<string> {
+  const claude = getClaudeClient();
+  const response = await claude.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: maxTokens,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
+  });
+
+  const block = response.content[0];
+  if (block.type !== 'text') throw new Error('Unexpected response type');
+  return block.text;
+}

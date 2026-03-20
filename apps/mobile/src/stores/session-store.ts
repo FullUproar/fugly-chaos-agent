@@ -6,6 +6,7 @@ import type {
   Mission,
   Signal,
   Poll,
+  Message,
   RoomStateResponse,
   ClaimWithContext,
   PlayerScore,
@@ -32,6 +33,7 @@ interface SessionState {
   activeClaims: ClaimWithContext[];
   allClaims: ClaimWithContext[];
   scores: PlayerScore[];
+  recentMessages: Message[];
 
   // Local UI state
   flashDismissed: boolean;
@@ -63,6 +65,7 @@ const initialState = {
   activeClaims: [],
   allClaims: [],
   scores: [],
+  recentMessages: [],
   flashDismissed: false,
   pollDismissed: false,
   _lastFlashId: null,
@@ -97,6 +100,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       activeClaims: state.active_claims,
       allClaims: state.all_claims ?? [],
       scores: state.scores,
+      recentMessages: state.recent_messages ?? [],
       // Reset dismissed state when a new flash/poll arrives
       flashDismissed: newFlashId !== prev._lastFlashId ? false : prev.flashDismissed,
       pollDismissed: newPollId !== prev._lastPollId ? false : prev.pollDismissed,

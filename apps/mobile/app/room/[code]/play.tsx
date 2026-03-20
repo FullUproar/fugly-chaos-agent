@@ -15,6 +15,7 @@ import { SignalPanel } from '@/components/SignalPanel';
 import { VerdictOverlay } from '@/components/VerdictOverlay';
 import { ClaimAlert } from '@/components/ClaimAlert';
 import { colors } from '@/theme/colors';
+import { triggerHaptic } from '@/lib/haptics';
 
 type Tab = 'missions' | 'activity' | 'leaderboard';
 
@@ -33,6 +34,8 @@ export default function PlayScreen() {
   const [signalOpen, setSignalOpen] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [claimToast, setClaimToast] = useState<{ message: string; points: number } | null>(null);
+  const [nudgeToast, setNudgeToast] = useState<string | null>(null);
+  const nudgeToastOpacity = useRef(new Animated.Value(0)).current;
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
   const {
@@ -59,6 +62,34 @@ export default function PlayScreen() {
       useNativeDriver: true,
     }).start(() => setClaimToast(null));
   }, [toastOpacity]);
+
+  // --- Nudge handler ---
+  const handleNudge = useCallback(async (claimId: string) => {
+    try {
+      const result = await api.nudgeVoters({ claim_id: claimId });
+      triggerHaptic('signalSent');
+      setNudgeToast(result.message);
+      nudgeToastOpacity.setValue(1);
+      Animated.timing(nudgeToastOpacity, {
+        toValue: 0,
+        duration: 2500,
+        delay: 1200,
+        useNativeDriver: true,
+      }).start(() => setNudgeToast(null));
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes('Cooldown')) {
+        setNudgeToast('Easy there... cooldown active');
+        nudgeToastOpacity.setValue(1);
+        Animated.timing(nudgeToastOpacity, {
+          toValue: 0,
+          duration: 1500,
+          delay: 800,
+          useNativeDriver: true,
+        }).start(() => setNudgeToast(null));
+      }
+    }
+  }, [nudgeToastOpacity]);
 
   const handleEndGame = async () => {
     if (!roomId) return;
@@ -103,17 +134,14 @@ export default function PlayScreen() {
   const prevClaimIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Track which claims were active last poll
     const prevActive = prevClaimIdsRef.current;
     const currentActiveIds = new Set(activeClaims.map((c) => c.claim.id));
 
-    // Find claims that were active but are now resolved
     for (const claim of allClaims) {
       const wasActive = prevActive.has(claim.claim.id);
       const isResolved = claim.claim.status === 'VOTE_PASSED' || claim.claim.status === 'VOTE_FAILED';
 
       if (wasActive && isResolved && !verdict) {
-        // Build vote reveal data with nicknames
         const voteReveals = claim.votes.map((v) => {
           const player = players.find((p) => p.id === v.room_player_id);
           return { nickname: player?.nickname ?? '???', vote: v.vote as 'ACCEPT' | 'BULLSHIT' };
@@ -224,7 +252,16 @@ export default function PlayScreen() {
         />
       )}
       {activeTab === 'activity' && (
-        <ActivityTab claims={allClaims} activeClaims={activeClaims} myRoomPlayerId={roomPlayerId} bottomPad={bottomPad} localVotes={localVotes} onVoted={trackLocalVote} />
+        <ActivityTab
+          claims={allClaims}
+          activeClaims={activeClaims}
+          myRoomPlayerId={roomPlayerId}
+          bottomPad={bottomPad}
+          localVotes={localVotes}
+          onVoted={trackLocalVote}
+          players={players}
+          onNudge={handleNudge}
+        />
       )}
       {activeTab === 'leaderboard' && (
         <LeaderboardTab bottomPad={bottomPad} />
@@ -235,6 +272,13 @@ export default function PlayScreen() {
         <Animated.View style={[styles.toast, { opacity: toastOpacity, bottom: 90 + insets.bottom }]}>
           <Text style={styles.toastText}>{claimToast.message}</Text>
           <Text style={styles.toastPoints}>+{claimToast.points}</Text>
+        </Animated.View>
+      )}
+
+      {/* Nudge toast */}
+      {nudgeToast && (
+        <Animated.View style={[styles.nudgeToast, { opacity: nudgeToastOpacity, bottom: 90 + insets.bottom }]}>
+          <Text style={styles.nudgeToastText}>{nudgeToast}</Text>
         </Animated.View>
       )}
 
@@ -319,7 +363,6 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
     finally { setVoting(null); }
   };
 
-  // Build a map of mission_id → active claim (if locked)
   const claimByMission: Record<string, ClaimWithContext> = {};
   for (const c of activeClaims) {
     if (c.claim.mission_id) {
@@ -366,12 +409,11 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
               {isLocked && <Text style={styles.lockedBadge}>CLAIMED</Text>}
             </View>
 
-            {/* Locked state: show who claimed + inline voting */}
             {isLocked && (
               <View style={styles.expandedContent}>
                 <Text style={styles.compactDesc}>{item.description}</Text>
                 <Text style={styles.lockedBy}>
-                  {isMyClaim ? 'You claimed this — waiting for votes' : `${lockClaim.claimant_nickname} claims this`}
+                  {isMyClaim ? 'You claimed this \u2014 waiting for votes' : `${lockClaim.claimant_nickname} claims this`}
                 </Text>
 
                 {(acceptCount > 0 || bsCount > 0) && (
@@ -405,7 +447,6 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
               </View>
             )}
 
-            {/* Normal state: expandable with claim button */}
             {!isLocked && isExpanded && (
               <View style={styles.expandedContent}>
                 <Text style={styles.compactDesc}>{item.description}</Text>
@@ -439,7 +480,7 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
 
 // --- Activity Tab ---
 function ActivityTab({
-  claims, activeClaims, myRoomPlayerId, bottomPad, localVotes, onVoted,
+  claims, activeClaims, myRoomPlayerId, bottomPad, localVotes, onVoted, players, onNudge,
 }: {
   claims: ClaimWithContext[];
   activeClaims: ClaimWithContext[];
@@ -447,6 +488,8 @@ function ActivityTab({
   bottomPad: number;
   localVotes: Record<string, VoteType>;
   onVoted: (claimId: string, vote: VoteType) => void;
+  players: Array<{ id: string; nickname: string }>;
+  onNudge: (claimId: string) => void;
 }) {
   const activeIds = new Set(activeClaims.map((c) => c.claim.id));
   const [voting, setVoting] = useState<string | null>(null);
@@ -480,6 +523,8 @@ function ActivityTab({
         const isActive = activeIds.has(item.claim.id);
         const acceptCount = item.votes.filter((v) => v.vote === 'ACCEPT').length;
         const bsCount = item.votes.filter((v) => v.vote === 'BULLSHIT').length;
+        const totalVotes = item.votes.length;
+        const eligibleVoters = Math.max(1, players.length - 1);
         const passed = item.claim.status === 'VOTE_PASSED' || item.claim.status === 'ACCEPTED';
         const failed = item.claim.status === 'VOTE_FAILED';
         const isExpanded = expandedClaim === item.claim.id;
@@ -504,40 +549,54 @@ function ActivityTab({
 
             {(() => {
               const myVote = localVotes[item.claim.id] ?? item.my_vote;
+              const hasActed = !!myVote || isMine;
+
               return (
                 <>
+                  {/* Active claim, not mine, haven't voted: orange bar + vote buttons */}
                   {isActive && !isMine && !myVote && (
-                    <View style={styles.voteButtons}>
-                      <TouchableOpacity
-                        style={[styles.acceptButton, isVoting && styles.buttonDisabled]}
-                        onPress={() => handleVote(item.claim.id, 'ACCEPT')}
-                        disabled={isVoting}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.acceptButtonText}>{isVoting ? 'VOTING...' : 'ACCEPT'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.bsButton, isVoting && styles.buttonDisabled]}
-                        onPress={() => handleVote(item.claim.id, 'BULLSHIT')}
-                        disabled={isVoting}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.bsButtonText}>{isVoting ? '...' : 'BULLSHIT'}</Text>
-                      </TouchableOpacity>
+                    <View>
+                      <View style={styles.voteButtons}>
+                        <TouchableOpacity
+                          style={[styles.acceptButton, isVoting && styles.buttonDisabled]}
+                          onPress={() => handleVote(item.claim.id, 'ACCEPT')}
+                          disabled={isVoting}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.acceptButtonText}>{isVoting ? 'VOTING...' : 'ACCEPT'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.bsButton, isVoting && styles.buttonDisabled]}
+                          onPress={() => handleVote(item.claim.id, 'BULLSHIT')}
+                          disabled={isVoting}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.bsButtonText}>{isVoting ? '...' : 'BULLSHIT'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <WaitingBar claimedAt={item.claim.claimed_at} durationSeconds={180} muted={false} />
                     </View>
                   )}
 
-                  {isActive && myVote && !isMine && (
+                  {/* Active claim, voted or is mine: grey bar + vote tally + nudge */}
+                  {isActive && hasActed && (
                     <View>
-                      <Text style={styles.votedText}>You voted: {myVote}</Text>
-                      <WaitingBar claimedAt={item.claim.claimed_at} durationSeconds={180} />
-                    </View>
-                  )}
-
-                  {isActive && isMine && (
-                    <View>
-                      <Text style={styles.votedText}>Your claim — waiting for votes</Text>
-                      <WaitingBar claimedAt={item.claim.claimed_at} durationSeconds={180} />
+                      <View style={styles.waitingInfoRow}>
+                        <Text style={styles.votedText}>
+                          {isMine ? 'Your claim \u2014 waiting for votes' : `You voted: ${myVote}`}
+                        </Text>
+                        <Text style={styles.voteTally}>
+                          {totalVotes}/{eligibleVoters} voted
+                        </Text>
+                      </View>
+                      <WaitingBar claimedAt={item.claim.claimed_at} durationSeconds={180} muted={true} />
+                      <TouchableOpacity
+                        style={styles.nudgeButtonInline}
+                        onPress={() => onNudge(item.claim.id)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.nudgeButtonInlineText}>NUDGE</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </>
@@ -584,8 +643,8 @@ function LeaderboardTab({ bottomPad }: { bottomPad: number }) {
   );
 }
 
-// --- Waiting Bar (grey decay bar for claims you've acted on) ---
-function WaitingBar({ claimedAt, durationSeconds }: { claimedAt: string; durationSeconds: number }) {
+// --- Waiting Bar (decay bar for claims -- grey when muted, orange when active) ---
+function WaitingBar({ claimedAt, durationSeconds, muted }: { claimedAt: string; durationSeconds: number; muted: boolean }) {
   const [progress, setProgress] = useState(1);
 
   useEffect(() => {
@@ -604,7 +663,10 @@ function WaitingBar({ claimedAt, durationSeconds }: { claimedAt: string; duratio
 
   return (
     <View style={styles.waitingBarContainer}>
-      <View style={[styles.waitingBarFill, { width: `${progress * 100}%` }]} />
+      <View style={[
+        muted ? styles.waitingBarFillMuted : styles.waitingBarFillActive,
+        { width: `${progress * 100}%` },
+      ]} />
     </View>
   );
 }
@@ -616,6 +678,7 @@ const styles = StyleSheet.create({
   headerBar: {
     flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingVertical: 8,
   },
+  endGameTouch: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
   endGameLink: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },
 
   // End game confirmation
@@ -627,18 +690,19 @@ const styles = StyleSheet.create({
   confirmText: { fontSize: 15, color: colors.text, fontWeight: '600', flex: 1 },
   confirmButtons: { flexDirection: 'row', gap: 8 },
   confirmYes: {
-    backgroundColor: colors.error, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 50,
+    backgroundColor: colors.error, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 50,
+    minHeight: 44, justifyContent: 'center',
   },
-  confirmYesText: { fontSize: 13, fontWeight: '900', color: colors.text, letterSpacing: 1 },
+  confirmYesText: { fontSize: 14, fontWeight: '900', color: colors.text, letterSpacing: 1 },
   confirmNo: {
-    paddingVertical: 8, paddingHorizontal: 16, borderRadius: 50,
-    borderWidth: 1, borderColor: colors.surfaceBorder,
+    paddingVertical: 10, paddingHorizontal: 16, borderRadius: 50,
+    borderWidth: 1, borderColor: colors.surfaceBorder, minHeight: 44, justifyContent: 'center',
   },
-  confirmNoText: { fontSize: 13, fontWeight: '700', color: colors.textMuted, letterSpacing: 1 },
+  confirmNoText: { fontSize: 14, fontWeight: '700', color: colors.textMuted, letterSpacing: 1 },
 
   // Tabs
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.surfaceBorder },
-  tab: { flex: 1, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  tab: { flex: 1, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, minHeight: 48 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },
   tabText: { fontSize: 13, fontWeight: '700', color: colors.textMuted, letterSpacing: 1 },
   tabTextActive: { color: colors.accent },
@@ -658,8 +722,8 @@ const styles = StyleSheet.create({
 
   // Compact standing mission
   compactMission: {
-    backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
-    borderWidth: 1, borderColor: colors.surfaceBorder,
+    backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 14,
+    borderWidth: 1, borderColor: colors.surfaceBorder, minHeight: 52,
   },
   compactMissionLocked: { borderColor: colors.warning },
   compactHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -670,9 +734,10 @@ const styles = StyleSheet.create({
   lockedBadge: { fontSize: 12, fontWeight: '900', color: colors.warning, letterSpacing: 1 },
   lockedBy: { fontSize: 14, color: colors.warning, fontWeight: '600', marginBottom: 8 },
   compactClaimButton: {
-    backgroundColor: colors.accent, paddingVertical: 12, borderRadius: 50, alignItems: 'center',
+    backgroundColor: colors.accent, paddingVertical: 14, borderRadius: 50, alignItems: 'center',
+    minHeight: 48,
   },
-  compactClaimText: { fontSize: 15, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
+  compactClaimText: { fontSize: 16, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
 
   // Waiting card
   waitingCard: {
@@ -693,6 +758,16 @@ const styles = StyleSheet.create({
   toastText: { fontSize: 18, fontWeight: '900', color: colors.accentText },
   toastPoints: { fontSize: 20, fontWeight: '900', color: colors.accentText },
 
+  // Nudge toast
+  nudgeToast: {
+    position: 'absolute', left: 20, right: 20,
+    backgroundColor: colors.surface, borderRadius: 50, paddingVertical: 14, paddingHorizontal: 24,
+    borderWidth: 2, borderColor: colors.warning,
+    alignItems: 'center',
+    elevation: 6,
+  },
+  nudgeToastText: { fontSize: 16, fontWeight: '900', color: colors.highlight, letterSpacing: 1 },
+
   // Claim/vote card
   claimCard: {
     backgroundColor: colors.surface, borderRadius: 12, padding: 16,
@@ -707,23 +782,56 @@ const styles = StyleSheet.create({
   voteButtons: { flexDirection: 'row', gap: 12 },
   acceptButton: {
     flex: 1, backgroundColor: '#0A1A0F', paddingVertical: 16, borderRadius: 50,
-    alignItems: 'center', borderWidth: 1, borderColor: colors.success,
+    alignItems: 'center', borderWidth: 1, borderColor: colors.success, minHeight: 52,
   },
-  acceptButtonText: { fontSize: 15, fontWeight: '700', color: colors.success, letterSpacing: 1 },
+  acceptButtonText: { fontSize: 16, fontWeight: '700', color: colors.success, letterSpacing: 1 },
   bsButton: {
     flex: 1, backgroundColor: colors.accentBg, paddingVertical: 16, borderRadius: 50,
-    alignItems: 'center', borderWidth: 1, borderColor: colors.accent,
+    alignItems: 'center', borderWidth: 1, borderColor: colors.accent, minHeight: 52,
   },
-  bsButtonText: { fontSize: 15, fontWeight: '700', color: colors.accent, letterSpacing: 1 },
+  bsButtonText: { fontSize: 16, fontWeight: '700', color: colors.accent, letterSpacing: 1 },
   buttonDisabled: { opacity: 0.5 },
   votedText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic' },
   statusVerified: { fontSize: 14, fontWeight: '700', color: colors.success, letterSpacing: 1 },
   statusFailed: { fontSize: 14, fontWeight: '700', color: colors.error, letterSpacing: 1 },
 
+  // Waiting info row (vote tally + status)
+  waitingInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  voteTally: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textMuted,
+    letterSpacing: 1,
+  },
+
+  // Inline nudge button (Activity tab)
+  nudgeButtonInline: {
+    marginTop: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.warning,
+    paddingVertical: 10,
+    borderRadius: 50,
+    alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  nudgeButtonInlineText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: colors.warning,
+    letterSpacing: 2,
+  },
+
   // Leaderboard
   scoreRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16,
-    backgroundColor: colors.surface, borderRadius: 8,
+    backgroundColor: colors.surface, borderRadius: 8, minHeight: 56,
   },
   scoreRowFirst: { backgroundColor: colors.accentBg, borderWidth: 1, borderColor: colors.accent },
   scoreRank: { fontSize: 20, fontWeight: '800', color: colors.textMuted, width: 32 },
@@ -736,18 +844,21 @@ const styles = StyleSheet.create({
   // FAB
   fab: {
     position: 'absolute', right: 20,
-    paddingHorizontal: 18, paddingVertical: 14, borderRadius: 50,
+    paddingHorizontal: 20, paddingVertical: 16, borderRadius: 50,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
-    elevation: 4,
+    elevation: 4, minWidth: 90, minHeight: 48,
   },
-  fabText: { fontSize: 13, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
+  fabText: { fontSize: 14, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
 
   // Waiting bar
   waitingBarContainer: {
     height: 4, backgroundColor: colors.surfaceBorder, borderRadius: 2,
     marginTop: 10, overflow: 'hidden',
   },
-  waitingBarFill: {
+  waitingBarFillMuted: {
     height: '100%', backgroundColor: colors.textMuted, borderRadius: 2,
+  },
+  waitingBarFillActive: {
+    height: '100%', backgroundColor: colors.accent, borderRadius: 2,
   },
 });

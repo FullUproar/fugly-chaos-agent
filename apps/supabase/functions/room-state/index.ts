@@ -131,6 +131,7 @@ Deno.serve(async (req) => {
       pollResult,
       signalsResult,
       claimsResult,
+      messagesResult,
     ] = await Promise.all([
       supabase.from('rooms').select('*').eq('id', room_id).single(),
       supabase.from('room_players').select('*').eq('room_id', room_id).order('joined_at'),
@@ -148,6 +149,14 @@ Deno.serve(async (req) => {
         .select('*, missions!inner(title, points, room_id, room_player_id, type)')
         .eq('missions.room_id', room_id)
         .order('claimed_at', { ascending: false }),
+      // Recent messages (room-wide + DMs for this player) — last 10
+      supabase
+        .from('messages')
+        .select('*')
+        .eq('room_id', room_id)
+        .or(`recipient_id.is.null,sender_id.eq.${myRoomPlayer.id},recipient_id.eq.${myRoomPlayer.id}`)
+        .order('created_at', { ascending: false })
+        .limit(10),
     ]);
 
     const players = playersResult.data ?? [];
@@ -227,6 +236,7 @@ Deno.serve(async (req) => {
       active_claims: activeClaims,
       all_claims: allClaims,
       scores: scores.sort((a: { score: number }, b: { score: number }) => b.score - a.score),
+      recent_messages: messagesResult.data ?? [],
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

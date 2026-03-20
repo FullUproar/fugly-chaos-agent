@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 
 interface Props {
@@ -34,10 +35,11 @@ const RULES = [
 ];
 
 export function CodeOfChaos({ visible, onAccept }: Props) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}>
           <Text style={styles.title}>THE CODE OF CHAOS</Text>
           <Text style={styles.subtitle}>Read this. Live this. Then wreak havoc.</Text>
 
@@ -69,7 +71,7 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingBottom: 100 },
   title: {
     fontSize: 28, fontWeight: '900', color: colors.accent,
-    letterSpacing: 4, textAlign: 'center', marginTop: 48, marginBottom: 4,
+    letterSpacing: 4, textAlign: 'center', marginBottom: 4,
   },
   subtitle: {
     fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 32,
@@ -88,9 +90,9 @@ const styles = StyleSheet.create({
     fontStyle: 'italic', marginTop: 16,
   },
   acceptButton: {
-    position: 'absolute', bottom: 32, left: 24, right: 24,
+    position: 'absolute', bottom: 40, left: 24, right: 24,
     backgroundColor: colors.accent, paddingVertical: 18, borderRadius: 50,
-    alignItems: 'center',
+    alignItems: 'center', minHeight: 56,
   },
   acceptButtonText: { fontSize: 16, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
 });

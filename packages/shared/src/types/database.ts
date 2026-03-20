@@ -12,7 +12,7 @@ export type FlashType = 'race' | 'target' | 'group';
 export type MissionVisibility = 'all' | 'assigned';
 
 // Social signals
-export type SignalType = 'shake_it_up' | 'slow_your_roll' | 'target_player' | 'im_bored';
+export type SignalType = 'shake_it_up' | 'slow_your_roll' | 'target_player' | 'im_bored' | 'nudge';
 
 // Polls
 export type PollType = 'player_vote' | 'text_vote';
@@ -218,4 +218,17 @@ export interface MiniGameVote {
   room_player_id: string;
   voted_for_submission_id: string;
   voted_at: string;
+}
+
+// Table Talk messages
+export type MessageType = 'chat' | 'system' | 'reaction';
+
+export interface Message {
+  id: string;
+  room_id: string;
+  sender_id: string; // room_player_id
+  recipient_id: string | null; // null = room-wide, set = DM
+  content: string;
+  message_type: MessageType;
+  created_at: string;
 }

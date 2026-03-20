@@ -1,13 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Pressable, Share, ActivityIndicator, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSessionStore } from '@/stores/session-store';
 import { usePolling } from '@/hooks/use-polling';
+import { showToast } from '@/components/Toast';
 import { colors } from '@/theme/colors';
 
 export default function LobbyScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const { roomId, isHost, players, room } = useSessionStore();
+  const [starting, setStarting] = useState(false);
+  const insets = useSafeAreaInsets();
   usePolling(roomId);
 
   // Navigate based on room status changes
@@ -27,12 +31,14 @@ export default function LobbyScreen() {
   };
 
   const handleStart = () => {
-    // Navigate to setup — host initiates the setup flow
+    if (starting) return;
+    setStarting(true);
+    // Navigate to setup -- host initiates the setup flow
     router.replace(`/room/${code}/setup`);
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: insets.bottom + 16 }]}>
       <Pressable style={styles.codeContainer} onPress={handleShare}>
         <Text style={styles.codeLabel}>ROOM CODE</Text>
         <Text style={styles.code}>{code}</Text>
@@ -47,7 +53,9 @@ export default function LobbyScreen() {
         keyExtractor={(p) => p.id}
         renderItem={({ item }) => (
           <View style={styles.playerRow}>
-            <Text style={styles.playerName}>{item.nickname}</Text>
+            <Text style={styles.playerName} numberOfLines={1} ellipsizeMode="tail">
+              {item.nickname}
+            </Text>
             {item.is_host && <Text style={styles.hostBadge}>HOST</Text>}
             {item.setup_answers && (
               <Text style={styles.readyBadge}>READY</Text>
@@ -55,14 +63,24 @@ export default function LobbyScreen() {
           </View>
         )}
         style={styles.playerList}
+        contentContainerStyle={styles.playerListContent}
         ListEmptyComponent={
           <ActivityIndicator color={colors.textSecondary} style={{ marginTop: 24 }} />
         }
       />
 
       {isHost && players.length >= 2 && (
-        <TouchableOpacity style={styles.startButton} onPress={handleStart} activeOpacity={0.8}>
-          <Text style={styles.startButtonText}>START GAME</Text>
+        <TouchableOpacity
+          style={[styles.startButton, starting && styles.buttonDisabled]}
+          onPress={handleStart}
+          disabled={starting}
+          activeOpacity={0.8}
+        >
+          {starting ? (
+            <ActivityIndicator color={colors.accentText} />
+          ) : (
+            <Text style={styles.startButtonText}>START GAME</Text>
+          )}
         </TouchableOpacity>
       )}
 
@@ -87,34 +105,36 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginBottom: 32, paddingVertical: 24,
     backgroundColor: colors.surface, borderRadius: 12,
   },
-  codeLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, letterSpacing: 2, marginBottom: 8 },
+  codeLabel: { fontSize: 14, fontWeight: '600', color: colors.textSecondary, letterSpacing: 2, marginBottom: 8 },
   code: { fontSize: 48, fontWeight: '900', color: colors.accent, letterSpacing: 8 },
-  codeHint: { fontSize: 13, color: colors.textMuted, marginTop: 8 },
+  codeHint: { fontSize: 14, color: colors.textMuted, marginTop: 8 },
   sectionTitle: {
-    fontSize: 12, fontWeight: '600', color: colors.textSecondary,
+    fontSize: 14, fontWeight: '600', color: colors.textSecondary,
     letterSpacing: 2, marginBottom: 12,
   },
   playerList: { flex: 1 },
+  playerListContent: { gap: 8 },
   playerRow: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: colors.surface, borderRadius: 8, marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16,
+    backgroundColor: colors.surface, borderRadius: 8, minHeight: 52,
   },
   playerName: { fontSize: 16, fontWeight: '600', color: colors.text, flex: 1 },
   hostBadge: {
     fontSize: 11, fontWeight: '700', color: colors.accent,
-    backgroundColor: colors.accentBg, paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: colors.accentBg, paddingHorizontal: 8, paddingVertical: 4,
     borderRadius: 4, overflow: 'hidden', letterSpacing: 1,
   },
   readyBadge: {
     fontSize: 11, fontWeight: '700', color: colors.success,
-    backgroundColor: '#0A1A0F', paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: '#0A1A0F', paddingHorizontal: 8, paddingVertical: 4,
     borderRadius: 4, overflow: 'hidden', letterSpacing: 1, marginLeft: 6,
   },
   startButton: {
     backgroundColor: colors.accent, paddingVertical: 20, borderRadius: 50,
-    alignItems: 'center', marginTop: 16,
+    alignItems: 'center', marginTop: 16, minHeight: 60,
   },
+  buttonDisabled: { opacity: 0.6 },
   startButtonText: { fontSize: 18, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
   waitingContainer: { paddingVertical: 20, alignItems: 'center' },
-  waitingText: { color: colors.textSecondary, fontSize: 15 },
+  waitingText: { color: colors.textSecondary, fontSize: 16 },
 });
