@@ -121,4 +121,20 @@ export const api = {
 
   getPlayerStats: () =>
     invoke<PlayerStatsResponse>('player-stats', {}),
+
+  // Mini-games
+  startMiniGame: (req: Record<string, unknown>) =>
+    invoke<Record<string, unknown>>('mini-game', { action: 'start', ...req }),
+
+  submitMiniGame: (miniGameId: string, content: string) =>
+    invoke<{ submitted: boolean }>('mini-game', { action: 'submit', mini_game_id: miniGameId, content }),
+
+  voteMiniGame: (miniGameId: string, submissionId: string) =>
+    invoke<{ voted: boolean }>('mini-game', { action: 'vote', mini_game_id: miniGameId, submission_id: submissionId }),
+
+  advanceMiniGame: (miniGameId: string) =>
+    invoke<{ phase: string }>('mini-game', { action: 'advance', mini_game_id: miniGameId }),
+
+  getMiniGameState: (roomId: string) =>
+    invoke<Record<string, unknown>>('mini-game', { action: 'state', room_id: roomId }),
 };

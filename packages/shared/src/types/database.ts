@@ -187,3 +187,35 @@ export interface PollVote {
   answer: string;
   voted_at: string;
 }
+
+// Mini-games
+export type MiniGameType = 'drawing' | 'caption' | 'hot_take' | 'lie_detector';
+export type MiniGameStatus = 'PROMPTING' | 'SUBMITTING' | 'VOTING' | 'RESULTS' | 'CLOSED';
+
+export interface MiniGame {
+  id: string;
+  room_id: string;
+  game_type: MiniGameType;
+  prompt: string;
+  status: MiniGameStatus;
+  points: number;
+  phase_ends_at: string | null;
+  winner_room_player_id: string | null;
+  created_at: string;
+}
+
+export interface MiniGameSubmission {
+  id: string;
+  mini_game_id: string;
+  room_player_id: string;
+  content: string; // JSON for drawings, text for captions, 'true'/'false' for hot takes
+  submitted_at: string;
+}
+
+export interface MiniGameVote {
+  id: string;
+  mini_game_id: string;
+  room_player_id: string;
+  voted_for_submission_id: string;
+  voted_at: string;
+}

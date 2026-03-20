@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  ActivityIndicator, StyleSheet, Switch, Platform,
+  ActivityIndicator, StyleSheet, Switch,
 } from 'react-native';
 import { router } from 'expo-router';
 import { GAME_TYPE_OPTIONS } from '@chaos-agent/shared';
@@ -54,7 +54,7 @@ export default function PlanNightScreen() {
       });
 
       setIdentity(playerId, res.room_player_id, res.room_id, nickname.trim(), true);
-      router.replace(`/event/${res.room_id}/invite`);
+      router.replace(`/room/${res.code}/lobby`);
     } catch (e) {
       setError((e as Error).message);
     } finally {

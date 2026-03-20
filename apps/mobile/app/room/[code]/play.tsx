@@ -528,11 +528,17 @@ function ActivityTab({
                   )}
 
                   {isActive && myVote && !isMine && (
-                    <Text style={styles.votedText}>You voted: {myVote}</Text>
+                    <View>
+                      <Text style={styles.votedText}>You voted: {myVote}</Text>
+                      <WaitingBar claimedAt={item.claim.claimed_at} durationSeconds={180} />
+                    </View>
                   )}
 
                   {isActive && isMine && (
-                    <Text style={styles.votedText}>Your claim — waiting for votes</Text>
+                    <View>
+                      <Text style={styles.votedText}>Your claim — waiting for votes</Text>
+                      <WaitingBar claimedAt={item.claim.claimed_at} durationSeconds={180} />
+                    </View>
                   )}
                 </>
               );
@@ -575,6 +581,31 @@ function LeaderboardTab({ bottomPad }: { bottomPad: number }) {
         </View>
       )}
     />
+  );
+}
+
+// --- Waiting Bar (grey decay bar for claims you've acted on) ---
+function WaitingBar({ claimedAt, durationSeconds }: { claimedAt: string; durationSeconds: number }) {
+  const [progress, setProgress] = useState(1);
+
+  useEffect(() => {
+    const start = new Date(claimedAt).getTime();
+    const end = start + durationSeconds * 1000;
+
+    const tick = () => {
+      const now = Date.now();
+      const remaining = Math.max(0, (end - now) / (durationSeconds * 1000));
+      setProgress(remaining);
+    };
+    tick();
+    const interval = setInterval(tick, 500);
+    return () => clearInterval(interval);
+  }, [claimedAt, durationSeconds]);
+
+  return (
+    <View style={styles.waitingBarContainer}>
+      <View style={[styles.waitingBarFill, { width: `${progress * 100}%` }]} />
+    </View>
   );
 }
 
@@ -710,4 +741,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   fabText: { fontSize: 13, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
+
+  // Waiting bar
+  waitingBarContainer: {
+    height: 4, backgroundColor: colors.surfaceBorder, borderRadius: 2,
+    marginTop: 10, overflow: 'hidden',
+  },
+  waitingBarFill: {
+    height: '100%', backgroundColor: colors.textMuted, borderRadius: 2,
+  },
 });

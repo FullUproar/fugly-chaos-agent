@@ -263,6 +263,53 @@ export interface RecentGame {
   player_count: number;
 }
 
+// POST /mini-game (action: start | submit | vote | advance | state)
+export interface MiniGameStartRequest {
+  action: 'start';
+  room_id: string;
+  game_type: 'drawing' | 'caption' | 'hot_take' | 'lie_detector';
+  prompt: string;
+  points?: number;
+  submission_time_sec?: number;
+  voting_time_sec?: number;
+  target_player_id?: string;
+}
+export interface MiniGameSubmitRequest {
+  action: 'submit';
+  mini_game_id: string;
+  content: string;
+}
+export interface MiniGameVoteRequest {
+  action: 'vote';
+  mini_game_id: string;
+  submission_id: string;
+}
+export interface MiniGameAdvanceRequest {
+  action: 'advance';
+  mini_game_id: string;
+}
+export interface MiniGameStateRequest {
+  action: 'state';
+  room_id: string;
+}
+export interface MiniGameStateResponse {
+  active: boolean;
+  game?: {
+    id: string;
+    game_type: string;
+    prompt: string;
+    status: string;
+    points: number;
+    phase_ends_at: string | null;
+    winner_nickname: string | null;
+  };
+  submissions?: Array<{ id: string; content: string; room_player_id?: string }>;
+  submission_nicknames?: Record<string, string>;
+  votes?: Array<{ room_player_id: string; voted_for_submission_id: string }>;
+  my_submission?: string | null;
+  my_vote?: string | null;
+}
+
 // Generic error response
 export interface ApiError {
   error: string;
