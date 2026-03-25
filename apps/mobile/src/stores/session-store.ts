@@ -95,7 +95,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const prev = get();
     const newFlashId = state.active_flash?.id ?? null;
     const newPollId = state.active_poll?.id ?? null;
-    const newMiniGameId = state.active_mini_game?.session?.id ?? null;
+    const newMiniGameId = state.active_mini_game?.game?.id ?? null;
 
     set({
       room: state.room,

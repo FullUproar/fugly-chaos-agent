@@ -158,12 +158,12 @@ Deno.serve(async (req) => {
         .or(`recipient_id.is.null,sender_id.eq.${myRoomPlayer.id},recipient_id.eq.${myRoomPlayer.id}`)
         .order('created_at', { ascending: false })
         .limit(10),
-      // Active mini-game session
+      // Active mini-game
       supabase
-        .from('mini_game_sessions')
+        .from('mini_games')
         .select('*')
         .eq('room_id', room_id)
-        .in('status', ['SUBMITTING', 'VOTING', 'REVEALING'])
+        .in('status', ['SUBMITTING', 'VOTING', 'RESULTS'])
         .order('created_at', { ascending: false })
         .limit(1),
     ]);
@@ -171,33 +171,33 @@ Deno.serve(async (req) => {
     const players = playersResult.data ?? [];
     const activeFlash = (flashResult.data ?? [])[0] ?? null;
     const activePoll = (pollResult.data ?? [])[0] ?? null;
-    const activeMiniGameSession = (miniGameResult.data ?? [])[0] ?? null;
+    const activeMiniGameRecord = (miniGameResult.data ?? [])[0] ?? null;
 
     // Build active mini-game context
     let activeMiniGame: Record<string, unknown> | null = null;
-    if (activeMiniGameSession) {
-      const sessionId = activeMiniGameSession.id;
+    if (activeMiniGameRecord) {
+      const miniGameId = activeMiniGameRecord.id;
 
       // Get current player's submission
       const { data: mySubmission } = await supabase
         .from('mini_game_submissions')
         .select('*')
-        .eq('session_id', sessionId)
+        .eq('mini_game_id', miniGameId)
         .eq('room_player_id', myRoomPlayer.id)
         .single();
 
-      // Get all submissions if VOTING or REVEALING
+      // Get all submissions if VOTING or RESULTS
       let allSubmissions: unknown[] | null = null;
-      if (activeMiniGameSession.status === 'VOTING' || activeMiniGameSession.status === 'REVEALING') {
+      if (activeMiniGameRecord.status === 'VOTING' || activeMiniGameRecord.status === 'RESULTS') {
         const { data: subs } = await supabase
           .from('mini_game_submissions')
           .select('*')
-          .eq('session_id', sessionId);
+          .eq('mini_game_id', miniGameId);
         allSubmissions = subs ?? [];
       }
 
       activeMiniGame = {
-        session: activeMiniGameSession,
+        game: activeMiniGameRecord,
         my_submission: mySubmission ?? null,
         submissions: allSubmissions,
       };
