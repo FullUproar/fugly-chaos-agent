@@ -8,5 +8,6 @@ export * from './constants/poll-questions';
 export * from './constants/mini-games';
 export * from './constants/teasers';
 export * from './constants/voting-mechanics';
+export * from './constants/mini-game-variations';
 export * from './utils/room-code';
 export * from './utils/scoring';

@@ -51,24 +51,113 @@ Deno.serve(async (req) => {
           .neq('status', 'CLOSED');
 
         const phaseEndsAt = new Date(Date.now() + (submission_time_sec ?? 45) * 1000).toISOString();
+        const resolvedGameType = game_type ?? 'caption';
+
+        // --- Select a variation ---
+        // Fetch recent variations for anti-repetition
+        const { data: recentGames } = await supabase
+          .from('mini_games')
+          .select('variation')
+          .eq('room_id', room_id)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        const recentVariations = (recentGames ?? []).map((g: any) => g.variation).filter(Boolean);
+
+        // Inline selectVariation logic (shared constants can't be imported in edge functions)
+        const VARIATIONS: Record<string, { id: string; name: string; reveal_text: string; applicable_to: string[]; weight: number }> = {
+          standard: { id: 'standard', name: 'Standard Vote', reveal_text: 'Vote for your favorite.', applicable_to: ['drawing', 'caption', 'hot_take', 'lie_detector'], weight: 25 },
+          worst_wins: { id: 'worst_wins', name: 'WORST WINS', reveal_text: 'The worse it is, the better.', applicable_to: ['drawing', 'caption'], weight: 10 },
+          the_editor: { id: 'the_editor', name: 'THE EDITOR', reveal_text: 'One critic. One opinion. No appeals.', applicable_to: ['drawing', 'caption'], weight: 8 },
+          blind_swap: { id: 'blind_swap', name: 'Blind Swap', reveal_text: 'Judge the work, not the person.', applicable_to: ['drawing', 'caption'], weight: 8 },
+          mashup: { id: 'mashup', name: 'MASHUP', reveal_text: 'What if we... combined them?', applicable_to: ['caption'], weight: 6 },
+          double_down: { id: 'double_down', name: 'Double Down', reveal_text: 'The minority report pays double.', applicable_to: ['hot_take'], weight: 8 },
+          the_reveal: { id: 'the_reveal', name: 'THE REVEAL', reveal_text: 'Explain yourself.', applicable_to: ['hot_take'], weight: 7 },
+          confidence_bet: { id: 'confidence_bet', name: 'Confidence Bet', reveal_text: 'Put your points where your mouth is.', applicable_to: ['lie_detector', 'hot_take'], weight: 8 },
+          interrogation: { id: 'interrogation', name: 'INTERROGATION', reveal_text: 'Two questions. Choose wisely.', applicable_to: ['lie_detector'], weight: 8 },
+          artists_choice: { id: 'artists_choice', name: "Artist's Choice", reveal_text: "Appreciate someone else's chaos.", applicable_to: ['drawing'], weight: 7 },
+          crowd_favorite: { id: 'crowd_favorite', name: 'Crowd Favorite', reveal_text: 'Rate the performance.', applicable_to: ['drawing', 'caption', 'hot_take', 'lie_detector'], weight: 8 },
+          sabotage: { id: 'sabotage', name: 'SABOTAGE', reveal_text: "Something doesn't feel right...", applicable_to: ['drawing', 'caption'], weight: 5 },
+        };
+
+        const lastThree = new Set(recentVariations.slice(-3));
+        const eligible = Object.values(VARIATIONS).filter(
+          (v) => v.applicable_to.includes(resolvedGameType) && !lastThree.has(v.id),
+        );
+        let selectedVariation = VARIATIONS.standard;
+        if (eligible.length > 0) {
+          const totalWeight = eligible.reduce((sum, v) => sum + v.weight, 0);
+          let roll = Math.random() * totalWeight;
+          for (const v of eligible) {
+            roll -= v.weight;
+            if (roll <= 0) { selectedVariation = v; break; }
+          }
+          if (roll > 0) selectedVariation = eligible[eligible.length - 1];
+        }
+
+        // Build variation_data based on selected variation
+        const variationData: Record<string, unknown> = {};
+
+        if (selectedVariation.id === 'the_editor') {
+          // Pick a random player as judge
+          const { data: players } = await supabase
+            .from('room_players')
+            .select('id, nickname')
+            .eq('room_id', room_id);
+          if (players && players.length > 0) {
+            const judge = players[Math.floor(Math.random() * players.length)];
+            variationData.editor_player_id = judge.id;
+            variationData.editor_nickname = judge.nickname;
+          }
+        }
+
+        if (selectedVariation.id === 'blind_swap') {
+          // Create a shuffle mapping at vote time (stored as flag; actual shuffle happens when voting starts)
+          variationData.shuffle_pending = true;
+        }
+
+        if (selectedVariation.id === 'sabotage') {
+          // Pick a random saboteur
+          const { data: players } = await supabase
+            .from('room_players')
+            .select('id, nickname')
+            .eq('room_id', room_id);
+          if (players && players.length > 0) {
+            const saboteur = players[Math.floor(Math.random() * players.length)];
+            variationData.saboteur_player_id = saboteur.id;
+            variationData.saboteur_nickname = saboteur.nickname;
+          }
+        }
+
+        if (selectedVariation.id === 'mashup') {
+          variationData.mashup_pending = true;
+        }
 
         const { data: game, error: gameError } = await supabase
           .from('mini_games')
           .insert({
             room_id,
-            game_type: game_type ?? 'caption',
+            game_type: resolvedGameType,
             prompt: prompt ?? 'Be creative!',
             points: points ?? 20,
             status: 'SUBMITTING',
             phase_ends_at: phaseEndsAt,
             target_player_id: target_player_id ?? null,
+            variation: selectedVariation.id,
+            variation_data: variationData,
           })
-          .select('id, game_type, prompt, status, points, phase_ends_at')
+          .select('id, game_type, prompt, status, points, phase_ends_at, variation, variation_data')
           .single();
 
         if (gameError) throw gameError;
 
-        return respond({ mini_game: game });
+        return respond({
+          mini_game: game,
+          variation: {
+            id: selectedVariation.id,
+            name: selectedVariation.name,
+            reveal_text: selectedVariation.reveal_text,
+          },
+        });
       }
 
       // ---- SUBMIT an answer ----
@@ -304,6 +393,8 @@ Deno.serve(async (req) => {
             points: game.points,
             phase_ends_at: game.phase_ends_at,
             winner_nickname: winnerNickname,
+            variation: game.variation ?? 'standard',
+            variation_data: game.variation_data ?? {},
           },
           submissions: anonSubmissions ?? [],
           submission_nicknames: submissionNicknames,
