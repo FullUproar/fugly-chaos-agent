@@ -42,6 +42,12 @@ const GAME_TYPE_LABELS: Record<string, string> = {
   caption: 'CAPTION THIS',
   hot_take: 'HOT TAKE',
   lie_detector: 'LIE DETECTOR',
+  worst_advice: 'WORST ADVICE',
+  speed_superlative: 'SPEED SUPERLATIVE',
+  emoji_story: 'EMOJI STORY',
+  two_word_story: 'TWO WORD STORY',
+  bluff_stats: 'BLUFF STATS',
+  assumption_arena: 'ASSUMPTION ARENA',
 };
 
 const VARIATION_LABELS: Partial<Record<MiniGameVariationId, string>> = {
@@ -74,6 +80,9 @@ export function MiniGameOverlay({ roomId, roomPlayerId, visible, onDismiss }: Pr
   const [revealDefense, setRevealDefense] = useState('');
   const [sabotageAnimating, setSabotageAnimating] = useState(false);
   const [mashupVote, setMashupVote] = useState<'mashup' | 'original' | null>(null);
+  const [wordInput1, setWordInput1] = useState('');
+  const [wordInput2, setWordInput2] = useState('');
+  const [bluffVote, setBluffVote] = useState<'TRUE' | 'FALSE' | null>(null);
   const variationRevealAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
 
@@ -185,6 +194,35 @@ export function MiniGameOverlay({ roomId, roomPlayerId, visible, onDismiss }: Pr
       fetchState();
     } catch { showToast('Submit failed.'); }
     finally { setSubmitting(false); }
+  };
+
+  const handleSubmitTwoWords = async () => {
+    if (!wordInput1.trim() || !wordInput2.trim() || !game) return;
+    setSubmitting(true);
+    try {
+      await api.submitMiniGame(game.id, JSON.stringify({ word1: wordInput1.trim(), word2: wordInput2.trim() }));
+      setWordInput1('');
+      setWordInput2('');
+      fetchState();
+    } catch { showToast('Submit failed.'); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleBluffVote = async (answer: 'TRUE' | 'FALSE') => {
+    if (!game || bluffVote) return;
+    setBluffVote(answer);
+    try {
+      await api.voteMiniGame(game.id, answer);
+      fetchState();
+    } catch { showToast('Vote failed.'); }
+  };
+
+  const handleSuperlativeVote = async (playerId: string) => {
+    if (!game) return;
+    try {
+      await api.voteMiniGame(game.id, playerId);
+      fetchState();
+    } catch { showToast('Vote failed.'); }
   };
 
   // Get vote prompt based on variation
@@ -323,6 +361,112 @@ export function MiniGameOverlay({ roomId, roomPlayerId, visible, onDismiss }: Pr
               </TouchableOpacity>
             </View>
           )}
+
+          {/* WORST ADVICE: text input like caption */}
+          {game.game_type === 'worst_advice' && (
+            <View style={styles.captionArea}>
+              <Text style={styles.scenarioHeader}>SCENARIO:</Text>
+              <TextInput
+                style={styles.captionInput}
+                placeholder="Give your worst advice..."
+                placeholderTextColor={colors.textMuted}
+                value={captionInput}
+                onChangeText={setCaptionInput}
+                maxLength={200}
+                multiline
+              />
+              <TouchableOpacity
+                style={[styles.submitButton, (!captionInput.trim() || submitting) && styles.buttonDisabled]}
+                onPress={handleSubmitCaption}
+                disabled={!captionInput.trim() || submitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.submitButtonText}>{submitting ? 'SENDING...' : 'SUBMIT'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* EMOJI STORY: emoji sequence + text input */}
+          {game.game_type === 'emoji_story' && (
+            <View style={styles.captionArea}>
+              <View style={styles.emojiSequenceRow}>
+                {(variationData.emoji_sequence ?? game.prompt.split(' ')).map((emoji: string, i: number) => (
+                  <Text key={i} style={styles.emojiChar}>{emoji}</Text>
+                ))}
+              </View>
+              <TextInput
+                style={styles.captionInput}
+                placeholder="Write a story using these emojis..."
+                placeholderTextColor={colors.textMuted}
+                value={captionInput}
+                onChangeText={setCaptionInput}
+                maxLength={250}
+                multiline
+              />
+              <TouchableOpacity
+                style={[styles.submitButton, (!captionInput.trim() || submitting) && styles.buttonDisabled]}
+                onPress={handleSubmitCaption}
+                disabled={!captionInput.trim() || submitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.submitButtonText}>{submitting ? 'SENDING...' : 'SUBMIT'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* TWO WORD STORY: template + two inputs */}
+          {game.game_type === 'two_word_story' && (
+            <View style={styles.captionArea}>
+              <Text style={styles.templateText}>{game.prompt}</Text>
+              <TextInput
+                style={styles.wordInput}
+                placeholder="Word / phrase 1..."
+                placeholderTextColor={colors.textMuted}
+                value={wordInput1}
+                onChangeText={setWordInput1}
+                maxLength={40}
+              />
+              <TextInput
+                style={styles.wordInput}
+                placeholder="Word / phrase 2..."
+                placeholderTextColor={colors.textMuted}
+                value={wordInput2}
+                onChangeText={setWordInput2}
+                maxLength={40}
+              />
+              <TouchableOpacity
+                style={[styles.submitButton, (!wordInput1.trim() || !wordInput2.trim() || submitting) && styles.buttonDisabled]}
+                onPress={handleSubmitTwoWords}
+                disabled={!wordInput1.trim() || !wordInput2.trim() || submitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.submitButtonText}>{submitting ? 'SENDING...' : 'SUBMIT'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ASSUMPTION ARENA: fill-in-the-blank text input */}
+          {game.game_type === 'assumption_arena' && (
+            <View style={styles.captionArea}>
+              <TextInput
+                style={styles.captionInput}
+                placeholder="Complete the statement..."
+                placeholderTextColor={colors.textMuted}
+                value={captionInput}
+                onChangeText={setCaptionInput}
+                maxLength={150}
+                multiline
+              />
+              <TouchableOpacity
+                style={[styles.submitButton, (!captionInput.trim() || submitting) && styles.buttonDisabled]}
+                onPress={handleSubmitCaption}
+                disabled={!captionInput.trim() || submitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.submitButtonText}>{submitting ? 'SENDING...' : 'SUBMIT'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
 
@@ -403,8 +547,68 @@ export function MiniGameOverlay({ roomId, roomPlayerId, visible, onDismiss }: Pr
         </View>
       )}
 
-      {/* VOTING phase */}
-      {game.status === 'VOTING' && !sabotageAnimating && !interrogationPhase && (
+      {/* BLUFF STATS voting: TRUE / FALSE buttons */}
+      {game.status === 'VOTING' && game.game_type === 'bluff_stats' && (
+        <View style={styles.bluffStatsArea}>
+          <Text style={styles.bluffStatText}>{game.prompt}</Text>
+          {!bluffVote ? (
+            <View style={styles.hotTakeButtons}>
+              <TouchableOpacity
+                style={styles.agreeButton}
+                onPress={() => handleBluffVote('TRUE')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.agreeText}>TRUE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.disagreeButton}
+                onPress={() => handleBluffVote('FALSE')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.disagreeText}>FALSE</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.waitingArea}>
+              <Text style={styles.bluffVotedText}>You voted: {bluffVote}</Text>
+              <Text style={styles.waitingText}>Waiting for others...</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* SPEED SUPERLATIVE voting: player name buttons */}
+      {game.status === 'VOTING' && game.game_type === 'speed_superlative' && (
+        <View style={styles.superlativeArea}>
+          <Text style={styles.superlativePrompt}>{game.prompt}</Text>
+          {!my_vote ? (
+            <FlatList
+              data={variationData.player_options ?? []}
+              keyExtractor={(item: any) => item.id}
+              style={styles.voteList}
+              renderItem={({ item }: { item: any }) => (
+                <TouchableOpacity
+                  style={styles.playerVoteCard}
+                  onPress={() => handleSuperlativeVote(item.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.playerVoteName}>{item.nickname}</Text>
+                </TouchableOpacity>
+              )}
+              ListHeaderComponent={
+                <Text style={styles.voteHeader}>Who fits this best?</Text>
+              }
+            />
+          ) : (
+            <View style={styles.waitingArea}>
+              <Text style={styles.waitingText}>Vote cast! Waiting for others...</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* VOTING phase (standard submission-based voting) */}
+      {game.status === 'VOTING' && game.game_type !== 'bluff_stats' && game.game_type !== 'speed_superlative' && !sabotageAnimating && !interrogationPhase && (
         <>
           {/* Editor-only restriction message */}
           {isEditorVariation && !isEditor && (
@@ -580,7 +784,24 @@ export function MiniGameOverlay({ roomId, roomPlayerId, visible, onDismiss }: Pr
       {/* RESULTS phase */}
       {game.status === 'RESULTS' && (
         <View style={styles.resultsArea}>
-          {game.winner_nickname && (
+          {/* Bluff stats result reveal */}
+          {game.game_type === 'bluff_stats' && (
+            <View style={styles.bluffResultCard}>
+              <Text style={styles.bluffResultLabel}>THE ANSWER IS...</Text>
+              <Text style={[
+                styles.bluffResultAnswer,
+                { color: variationData.correct_answer ? colors.success : colors.error },
+              ]}>
+                {variationData.correct_answer ? 'TRUE' : 'FALSE'}
+              </Text>
+              <Text style={styles.bluffStatText}>{game.prompt}</Text>
+              <Text style={styles.bluffResultScore}>
+                {variationData.correct_voters?.length ?? 0} / {variationData.total_voters ?? 0} got it right (+{game.points} pts each)
+              </Text>
+            </View>
+          )}
+
+          {game.winner_nickname && game.game_type !== 'bluff_stats' && (
             <View style={styles.winnerCard}>
               <Text style={styles.winnerLabel}>WINNER</Text>
               <Text style={styles.winnerName}>{game.winner_nickname}</Text>
@@ -826,5 +1047,75 @@ const styles = StyleSheet.create({
   },
   revealSubtitle: {
     fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 16,
+  },
+
+  // Worst Advice
+  scenarioHeader: {
+    fontSize: 12, fontWeight: '900', color: colors.warning, letterSpacing: 2,
+    marginBottom: 8,
+  },
+
+  // Emoji Story
+  emojiSequenceRow: {
+    flexDirection: 'row', justifyContent: 'center', gap: 16,
+    marginBottom: 20, paddingVertical: 16,
+    backgroundColor: colors.surface, borderRadius: 16,
+  },
+  emojiChar: {
+    fontSize: 40,
+  },
+
+  // Two Word Story
+  templateText: {
+    fontSize: 18, fontWeight: '600', color: colors.text, lineHeight: 26,
+    marginBottom: 16, fontStyle: 'italic', textAlign: 'center',
+  },
+  wordInput: {
+    backgroundColor: colors.surface, borderRadius: 12, padding: 16,
+    color: colors.text, fontSize: 18, borderWidth: 1, borderColor: colors.surfaceBorder,
+    marginBottom: 10,
+  },
+
+  // Bluff Stats
+  bluffStatsArea: {
+    flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12,
+  },
+  bluffStatText: {
+    fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'center',
+    lineHeight: 28, marginBottom: 24,
+  },
+  bluffVotedText: {
+    fontSize: 20, fontWeight: '800', color: colors.accent, marginBottom: 8,
+  },
+  bluffResultCard: {
+    backgroundColor: colors.surface, borderRadius: 16, padding: 24,
+    borderWidth: 2, borderColor: colors.accent, alignItems: 'center',
+    marginBottom: 24, width: '100%',
+  },
+  bluffResultLabel: {
+    fontSize: 12, fontWeight: '900', color: colors.textSecondary, letterSpacing: 3,
+    marginBottom: 12,
+  },
+  bluffResultAnswer: {
+    fontSize: 36, fontWeight: '900', letterSpacing: 4, marginBottom: 16,
+  },
+  bluffResultScore: {
+    fontSize: 14, color: colors.textSecondary, marginTop: 12,
+  },
+
+  // Speed Superlative
+  superlativeArea: {
+    flex: 1,
+  },
+  superlativePrompt: {
+    fontSize: 20, fontWeight: '700', color: colors.highlight, textAlign: 'center',
+    marginBottom: 16, lineHeight: 28,
+  },
+  playerVoteCard: {
+    backgroundColor: colors.surface, borderRadius: 12, padding: 18, marginBottom: 10,
+    borderWidth: 2, borderColor: colors.surfaceBorder, alignItems: 'center',
+  },
+  playerVoteName: {
+    fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: 1,
   },
 });

@@ -1,9 +1,13 @@
 export type MiniGameVariationId =
   | 'standard' | 'worst_wins' | 'the_editor' | 'blind_swap'
   | 'mashup' | 'double_down' | 'the_reveal' | 'confidence_bet'
-  | 'interrogation' | 'artists_choice' | 'crowd_favorite' | 'sabotage';
+  | 'interrogation' | 'artists_choice' | 'crowd_favorite' | 'sabotage'
+  | 'the_skeptic';
 
-export type MiniGameType = 'drawing' | 'caption' | 'hot_take' | 'lie_detector';
+export type MiniGameType =
+  | 'drawing' | 'caption' | 'hot_take' | 'lie_detector'
+  | 'worst_advice' | 'speed_superlative' | 'emoji_story'
+  | 'two_word_story' | 'bluff_stats' | 'assumption_arena';
 
 export interface MiniGameVariation {
   id: MiniGameVariationId;
@@ -20,7 +24,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: 'Standard Vote',
     description: 'Vote for your favorite. Classic rules.',
     reveal_text: 'Vote for your favorite.',
-    applicable_to: ['drawing', 'caption', 'hot_take', 'lie_detector'],
+    applicable_to: ['drawing', 'caption', 'hot_take', 'lie_detector', 'worst_advice', 'speed_superlative', 'emoji_story', 'two_word_story', 'bluff_stats', 'assumption_arena'],
     weight: 25,
   },
   worst_wins: {
@@ -28,7 +32,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: 'WORST WINS',
     description: 'Vote for the WORST submission. That person gets the points.',
     reveal_text: 'The worse it is, the better.',
-    applicable_to: ['drawing', 'caption'],
+    applicable_to: ['drawing', 'caption', 'worst_advice', 'emoji_story', 'two_word_story'],
     weight: 10,
   },
   the_editor: {
@@ -36,7 +40,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: 'THE EDITOR',
     description: 'One random player is the sole judge. Apples to Apples style.',
     reveal_text: 'One critic. One opinion. No appeals.',
-    applicable_to: ['drawing', 'caption'],
+    applicable_to: ['drawing', 'caption', 'worst_advice', 'emoji_story', 'two_word_story'],
     weight: 8,
   },
   blind_swap: {
@@ -44,7 +48,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: 'Blind Swap',
     description: 'You vote on a random submission, not knowing who made it.',
     reveal_text: 'Judge the work, not the person.',
-    applicable_to: ['drawing', 'caption'],
+    applicable_to: ['drawing', 'caption', 'worst_advice', 'emoji_story', 'two_word_story'],
     weight: 8,
   },
   mashup: {
@@ -52,7 +56,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: 'MASHUP',
     description: 'Two random captions get combined. Group votes if the mashup is funnier than either original.',
     reveal_text: 'What if we... combined them?',
-    applicable_to: ['caption'],
+    applicable_to: ['caption', 'two_word_story'],
     weight: 6,
   },
   double_down: {
@@ -60,7 +64,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: 'Double Down',
     description: 'After seeing the vote split, players can switch sides. Final minority gets 2x points.',
     reveal_text: 'The minority report pays double.',
-    applicable_to: ['hot_take'],
+    applicable_to: ['hot_take', 'bluff_stats', 'assumption_arena'],
     weight: 8,
   },
   the_reveal: {
@@ -68,7 +72,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: 'THE REVEAL',
     description: 'Everyone votes blind, then the most controversial player defends their position in 15 seconds.',
     reveal_text: 'Explain yourself.',
-    applicable_to: ['hot_take'],
+    applicable_to: ['hot_take', 'assumption_arena'],
     weight: 7,
   },
   confidence_bet: {
@@ -76,7 +80,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: 'Confidence Bet',
     description: 'Vote AND wager 1-5 points on confidence. Right = multiply, wrong = lose wager.',
     reveal_text: 'Put your points where your mouth is.',
-    applicable_to: ['lie_detector', 'hot_take'],
+    applicable_to: ['lie_detector', 'hot_take', 'bluff_stats'],
     weight: 8,
   },
   interrogation: {
@@ -92,7 +96,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: "Artist's Choice",
     description: "Each artist picks their favorite that ISN'T their own.",
     reveal_text: "Appreciate someone else's chaos.",
-    applicable_to: ['drawing'],
+    applicable_to: ['drawing', 'emoji_story'],
     weight: 7,
   },
   crowd_favorite: {
@@ -100,7 +104,7 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     name: 'Crowd Favorite',
     description: 'Audience cheers (1-5 rating) instead of binary vote. Highest average wins.',
     reveal_text: 'Rate the performance.',
-    applicable_to: ['drawing', 'caption', 'hot_take', 'lie_detector'],
+    applicable_to: ['drawing', 'caption', 'hot_take', 'lie_detector', 'worst_advice', 'speed_superlative', 'emoji_story', 'two_word_story', 'assumption_arena'],
     weight: 8,
   },
   sabotage: {
@@ -110,6 +114,14 @@ export const MINI_GAME_VARIATIONS: Record<MiniGameVariationId, MiniGameVariation
     reveal_text: "Something doesn't feel right...",
     applicable_to: ['drawing', 'caption'],
     weight: 5,
+  },
+  the_skeptic: {
+    id: 'the_skeptic',
+    name: 'THE SKEPTIC',
+    description: "One random player's vote counts 3x. Nobody knows who.",
+    reveal_text: 'Someone here has serious pull.',
+    applicable_to: ['speed_superlative'],
+    weight: 8,
   },
 };
 
