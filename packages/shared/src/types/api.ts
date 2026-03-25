@@ -27,6 +27,7 @@ import type {
 export interface CreateRoomRequest {
   game_type: GameType;
   game_name?: string;
+  room_name?: string;
   nickname?: string;
   settings?: RoomSettings;
 }

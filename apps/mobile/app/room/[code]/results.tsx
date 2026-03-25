@@ -291,7 +291,8 @@ export default function ResultsScreen() {
           )}
 
           {/* AHQ sync confirmation for linked players */}
-          {ahqSynced && isAhqLinked && (
+          {/* Enable when fulluproar.com/auth/chaos-agent is live */}
+          {false && ahqSynced && isAhqLinked && (
             <View style={styles.ahqSyncBanner}>
               <Text style={styles.ahqSyncText}>Stats updated on Afterroar HQ</Text>
               <Text style={styles.ahqSyncDetail}>
@@ -301,7 +302,8 @@ export default function ResultsScreen() {
           )}
 
           {/* AHQ connect prompt for unlinked players */}
-          {showAhqPrompt && !isAhqLinked && (
+          {/* Enable when fulluproar.com/auth/chaos-agent is live */}
+          {false && showAhqPrompt && !isAhqLinked && (
             <View style={styles.ahqPromptBanner}>
               <Text style={styles.ahqPromptText}>
                 Want to keep your chaos stats?

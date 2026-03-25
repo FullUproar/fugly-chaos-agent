@@ -31,6 +31,7 @@ export interface Room {
   host_id: string;
   game_type: GameType;
   game_name: string | null;
+  room_name: string | null;
   status: RoomStatus;
   settings: RoomSettings;
   max_players: number;

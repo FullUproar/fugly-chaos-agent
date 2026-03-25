@@ -40,6 +40,9 @@ export default function LobbyScreen() {
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 16 }]}>
       <TouchableOpacity style={styles.codeContainer} onPress={handleShare} activeOpacity={0.7}>
+        {room?.room_name ? (
+          <Text style={styles.roomName}>{room.room_name}</Text>
+        ) : null}
         <Text style={styles.codeLabel}>ROOM CODE</Text>
         <Text style={styles.code}>{code}</Text>
         <Text style={styles.codeHint}>Tap to share with your group</Text>
@@ -104,6 +107,9 @@ const styles = StyleSheet.create({
   codeContainer: {
     alignItems: 'center', marginBottom: 32, paddingVertical: 24,
     backgroundColor: colors.surface, borderRadius: 12,
+  },
+  roomName: {
+    fontSize: 18, fontWeight: '800', color: colors.accent, marginBottom: 8, letterSpacing: 1,
   },
   codeLabel: { fontSize: 14, fontWeight: '600', color: colors.textSecondary, letterSpacing: 2, marginBottom: 8 },
   code: { fontSize: 48, fontWeight: '900', color: colors.accent, letterSpacing: 8 },

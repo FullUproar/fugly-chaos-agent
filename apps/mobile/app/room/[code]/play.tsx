@@ -199,14 +199,17 @@ export default function PlayScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header with end game for host */}
-      {isHost && (
-        <View style={styles.headerBar}>
+      {/* Header with room name and end game for host */}
+      <View style={styles.headerBar}>
+        {room?.room_name ? (
+          <Text style={styles.roomNameHeader}>{room.room_name}</Text>
+        ) : <View />}
+        {isHost && (
           <TouchableOpacity onPress={() => setShowEndConfirm(true)} activeOpacity={0.7}>
             <Text style={styles.endGameLink}>End Game</Text>
           </TouchableOpacity>
-        </View>
-      )}
+        )}
+      </View>
 
       {/* End game confirmation */}
       {showEndConfirm && (
@@ -686,7 +689,11 @@ const styles = StyleSheet.create({
 
   // Header
   headerBar: {
-    flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingVertical: 8,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 8,
+  },
+  roomNameHeader: {
+    fontSize: 16, fontWeight: '800', color: colors.accent, letterSpacing: 1,
   },
   endGameTouch: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
   endGameLink: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },

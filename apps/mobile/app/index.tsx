@@ -110,7 +110,8 @@ export default function HomeScreen() {
       <Text style={styles.subtitle}>Secret missions. Social chaos.</Text>
 
       {/* AHQ Profile or Connect */}
-      {!ahqLoading && ahqProfile && (
+      {/* Enable when fulluproar.com/auth/chaos-agent is live */}
+      {false && !ahqLoading && ahqProfile && (
         <View style={styles.ahqProfileCard}>
           <View style={styles.ahqProfileHeader}>
             <Text style={styles.ahqDisplayName}>{ahqProfile.display_name}</Text>
@@ -133,7 +134,8 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {!ahqLoading && !ahqProfile && (
+      {/* Enable when fulluproar.com/auth/chaos-agent is live */}
+      {false && !ahqLoading && !ahqProfile && (
         <AHQConnect onLinked={handleAHQLinked} />
       )}
 
@@ -185,6 +187,8 @@ export default function HomeScreen() {
           <Text style={styles.outlineButtonText}>JOIN ROOM</Text>
         </TouchableOpacity>
       </View>
+
+      <Text style={styles.version}>v0.1.0 (build 5)</Text>
     </ScrollView>
   );
 }
@@ -244,4 +248,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: { fontSize: 18, fontWeight: '900', color: colors.accent, letterSpacing: 2 },
   outlineButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.surfaceBorder },
   outlineButtonText: { fontSize: 16, fontWeight: '700', color: colors.textSecondary, letterSpacing: 1 },
+
+  // Version
+  version: { color: '#6b7280', fontSize: 12, textAlign: 'center', marginTop: 'auto', paddingBottom: 8 },
 });

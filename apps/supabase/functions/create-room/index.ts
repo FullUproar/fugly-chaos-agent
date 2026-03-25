@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { game_type, game_name, settings, nickname } = await req.json();
+    const { game_type, game_name, room_name, settings, nickname } = await req.json();
     const supabase = getAdminClient();
 
     // Ensure player record exists
@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
         host_id: userId,
         game_type: game_type ?? 'party_game',
         game_name: game_name ?? null,
+        room_name: room_name ?? null,
         settings: settings ?? {},
       })
       .select('id, code')
