@@ -98,14 +98,14 @@ export function FlashMissionOverlay({ mission, onClaim, onDismiss }: Props) {
           {/* Actions */}
           <View style={styles.actions}>
             {!expired && !isClaimed && mission.flash_type !== 'group' && (
-              <TouchableOpacity style={styles.claimButton} onPress={onClaim} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.claimButton} onPress={onClaim} activeOpacity={0.7}>
                 <Text style={styles.claimButtonText}>CLAIM</Text>
               </TouchableOpacity>
             )}
             {isClaimed && (
               <Text style={styles.claimedText}>CLAIMED — PENDING VOTE</Text>
             )}
-            <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} activeOpacity={0.7}>
               <Text style={styles.dismissButtonText}>DISMISS</Text>
             </TouchableOpacity>
           </View>

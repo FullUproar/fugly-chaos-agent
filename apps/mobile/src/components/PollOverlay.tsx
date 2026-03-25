@@ -61,7 +61,7 @@ export function PollOverlay({ poll, myVote, onVote, onDismiss }: Props) {
                   ]}
                   onPress={() => !hasVoted && handleVote(opt)}
                   disabled={hasVoted}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
                   <Text style={[styles.optionText, isMyVote && styles.optionTextSelected]}>
                     {opt}
@@ -80,7 +80,7 @@ export function PollOverlay({ poll, myVote, onVote, onDismiss }: Props) {
             <Text style={styles.votedText}>Vote recorded!</Text>
           )}
 
-          <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} activeOpacity={0.7}>
             <Text style={styles.dismissButtonText}>
               {hasVoted ? 'CLOSE' : 'SKIP'}
             </Text>

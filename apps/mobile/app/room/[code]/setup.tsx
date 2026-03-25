@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, Pressable, TouchableOpacity, TextInput, ScrollView, Switch, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Switch, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { STANDARD_QUESTIONS, WILDCARD_QUESTIONS } from '@chaos-agent/shared';
@@ -97,13 +97,14 @@ export default function SetupScreen() {
           {q.type === 'select' && q.options && (
             <View style={styles.selectOptions}>
               {q.options.map((opt) => (
-                <Pressable
+                <TouchableOpacity
                   key={opt.value}
                   style={[
                     styles.selectOption,
                     answers[q.id as keyof SetupAnswers] === opt.value && styles.selectOptionActive,
                   ]}
                   onPress={() => setAnswer(q.id, opt.value)}
+                  activeOpacity={0.7}
                 >
                   <Text
                     style={[
@@ -113,7 +114,7 @@ export default function SetupScreen() {
                   >
                     {opt.label}
                   </Text>
-                </Pressable>
+                </TouchableOpacity>
               ))}
             </View>
           )}
@@ -147,7 +148,7 @@ export default function SetupScreen() {
         style={[styles.submitButton, loading && styles.buttonDisabled]}
         onPress={handleSubmit}
         disabled={loading}
-        activeOpacity={0.8}
+        activeOpacity={0.7}
       >
         {loading ? (
           <ActivityIndicator color={colors.accentText} />

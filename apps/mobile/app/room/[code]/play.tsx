@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, Pressable, FlatList, ScrollView,
+  View, Text, TouchableOpacity, FlatList, ScrollView,
   ActivityIndicator, Animated, StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { useSessionStore } from '@/stores/session-store';
 import { usePolling } from '@/hooks/use-polling';
 import { FlashMissionOverlay } from '@/components/FlashMissionOverlay';
+import { MiniGameOverlay } from '@/components/MiniGameOverlay';
 import { PollOverlay } from '@/components/PollOverlay';
 import { SignalPanel } from '@/components/SignalPanel';
 import { VerdictOverlay } from '@/components/VerdictOverlay';
@@ -41,7 +42,9 @@ export default function PlayScreen() {
   const {
     roomId, isHost, room, standingMissions, activeFlash, activePoll, myPollVote,
     activeClaims, allClaims, scores, roomPlayerId, players,
-    flashDismissed, pollDismissed, dismissFlash, dismissPoll,
+    flashDismissed, pollDismissed, miniGameDismissed,
+    dismissFlash, dismissPoll, dismissMiniGame,
+    activeMiniGame,
   } = useSessionStore();
   usePolling(roomId);
 
@@ -190,6 +193,7 @@ export default function PlayScreen() {
   };
 
   const showFlash = activeFlash && !flashDismissed && activeFlash.status === 'REVEALED';
+  const showMiniGame = activeMiniGame && !miniGameDismissed;
   const showPoll = activePoll && !pollDismissed;
   const bottomPad = insets.bottom + 80;
 
@@ -209,10 +213,10 @@ export default function PlayScreen() {
         <View style={styles.confirmBar}>
           <Text style={styles.confirmText}>End the game for everyone?</Text>
           <View style={styles.confirmButtons}>
-            <TouchableOpacity style={styles.confirmYes} onPress={handleEndGame} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.confirmYes} onPress={handleEndGame} activeOpacity={0.7}>
               <Text style={styles.confirmYesText}>END IT</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.confirmNo} onPress={() => setShowEndConfirm(false)} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.confirmNo} onPress={() => setShowEndConfirm(false)} activeOpacity={0.7}>
               <Text style={styles.confirmNoText}>CANCEL</Text>
             </TouchableOpacity>
           </View>
@@ -222,10 +226,11 @@ export default function PlayScreen() {
       {/* Tabs */}
       <View style={styles.tabs}>
         {(['missions', 'activity', 'leaderboard'] as Tab[]).map((tab) => (
-          <Pressable
+          <TouchableOpacity
             key={tab}
             style={[styles.tab, activeTab === tab && styles.tabActive]}
             onPress={() => setActiveTab(tab)}
+            activeOpacity={0.7}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
               {tab.toUpperCase()}
@@ -235,7 +240,7 @@ export default function PlayScreen() {
                 <Text style={styles.badgeText}>{activeClaims.length}</Text>
               </View>
             )}
-          </Pressable>
+          </TouchableOpacity>
         ))}
       </View>
 
@@ -286,15 +291,18 @@ export default function PlayScreen() {
       <TouchableOpacity
         style={[styles.fab, { bottom: 20 + insets.bottom }]}
         onPress={() => setSignalOpen(true)}
-        activeOpacity={0.8}
+        activeOpacity={0.7}
       >
         <Text style={styles.fabText}>SIGNAL</Text>
       </TouchableOpacity>
 
-      {showFlash && (
+      {showMiniGame && !verdict && roomId && (
+        <MiniGameOverlay roomId={roomId} visible={true} onDismiss={dismissMiniGame} />
+      )}
+      {showFlash && !verdict && !showMiniGame && (
         <FlashMissionOverlay mission={activeFlash} onClaim={handleClaimFlash} onDismiss={dismissFlash} />
       )}
-      {showPoll && (
+      {showPoll && !verdict && !showMiniGame && (
         <PollOverlay poll={activePoll} myVote={myPollVote} onVote={handlePollVote} onDismiss={dismissPoll} />
       )}
       <SignalPanel
@@ -306,7 +314,7 @@ export default function PlayScreen() {
       />
 
       {/* Claim alert — steals focus when someone else claims */}
-      {claimAlert && !verdict && (
+      {claimAlert && !verdict && !showMiniGame && (
         <ClaimAlert
           claim={claimAlert}
           onVote={handleAlertVote}
@@ -396,10 +404,11 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
         const isVotingThis = voting === lockClaim?.claim.id;
 
         return (
-          <Pressable
+          <TouchableOpacity
             key={item.id}
             style={[styles.compactMission, isLocked && styles.compactMissionLocked]}
             onPress={() => setExpanded(isExpanded ? null : item.id)}
+            activeOpacity={0.7}
           >
             <View style={styles.compactHeader}>
               <Text style={styles.compactTitle} numberOfLines={isExpanded ? undefined : 1}>
@@ -426,7 +435,7 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
                       style={[styles.acceptButton, isVotingThis && styles.buttonDisabled]}
                       onPress={() => handleVote(lockClaim.claim.id, 'ACCEPT')}
                       disabled={isVotingThis}
-                      activeOpacity={0.8}
+                      activeOpacity={0.7}
                     >
                       <Text style={styles.acceptButtonText}>{isVotingThis ? 'VOTING...' : 'ACCEPT'}</Text>
                     </TouchableOpacity>
@@ -434,7 +443,7 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
                       style={[styles.bsButton, isVotingThis && styles.buttonDisabled]}
                       onPress={() => handleVote(lockClaim.claim.id, 'BULLSHIT')}
                       disabled={isVotingThis}
-                      activeOpacity={0.8}
+                      activeOpacity={0.7}
                     >
                       <Text style={styles.bsButtonText}>{isVotingThis ? '...' : 'BULLSHIT'}</Text>
                     </TouchableOpacity>
@@ -454,7 +463,7 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
                   style={[styles.compactClaimButton, (hasPendingClaim || claiming === item.id) && styles.buttonDisabled]}
                   onPress={() => handleClaim(item)}
                   disabled={hasPendingClaim || claiming === item.id}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
                   {claiming === item.id ? (
                     <ActivityIndicator color={colors.accentText} size="small" />
@@ -466,7 +475,7 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
                 </TouchableOpacity>
               </View>
             )}
-          </Pressable>
+          </TouchableOpacity>
         );
       })}
 
@@ -531,9 +540,10 @@ function ActivityTab({
         const isVoting = voting === item.claim.id;
 
         return (
-          <Pressable
+          <TouchableOpacity
             style={[styles.claimCard, !isActive && styles.claimCardResolved]}
             onPress={() => setExpandedClaim(isExpanded ? null : item.claim.id)}
+            activeOpacity={0.7}
           >
             <View style={styles.claimHeader}>
               <Text style={styles.claimantName}>{item.claimant_nickname}</Text>
@@ -561,7 +571,7 @@ function ActivityTab({
                           style={[styles.acceptButton, isVoting && styles.buttonDisabled]}
                           onPress={() => handleVote(item.claim.id, 'ACCEPT')}
                           disabled={isVoting}
-                          activeOpacity={0.8}
+                          activeOpacity={0.7}
                         >
                           <Text style={styles.acceptButtonText}>{isVoting ? 'VOTING...' : 'ACCEPT'}</Text>
                         </TouchableOpacity>
@@ -569,7 +579,7 @@ function ActivityTab({
                           style={[styles.bsButton, isVoting && styles.buttonDisabled]}
                           onPress={() => handleVote(item.claim.id, 'BULLSHIT')}
                           disabled={isVoting}
-                          activeOpacity={0.8}
+                          activeOpacity={0.7}
                         >
                           <Text style={styles.bsButtonText}>{isVoting ? '...' : 'BULLSHIT'}</Text>
                         </TouchableOpacity>
@@ -593,7 +603,7 @@ function ActivityTab({
                       <TouchableOpacity
                         style={styles.nudgeButtonInline}
                         onPress={() => onNudge(item.claim.id)}
-                        activeOpacity={0.8}
+                        activeOpacity={0.7}
                       >
                         <Text style={styles.nudgeButtonInlineText}>NUDGE</Text>
                       </TouchableOpacity>
@@ -602,7 +612,7 @@ function ActivityTab({
                 </>
               );
             })()}
-          </Pressable>
+          </TouchableOpacity>
         );
       }}
     />

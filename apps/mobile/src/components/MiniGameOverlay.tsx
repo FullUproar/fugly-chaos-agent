@@ -170,7 +170,7 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
                 style={[styles.submitButton, (!captionInput.trim() || submitting) && styles.buttonDisabled]}
                 onPress={handleSubmitCaption}
                 disabled={!captionInput.trim() || submitting}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
                 <Text style={styles.submitButtonText}>{submitting ? 'SENDING...' : 'SUBMIT'}</Text>
               </TouchableOpacity>
@@ -183,7 +183,7 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
                 style={[styles.agreeButton, submitting && styles.buttonDisabled]}
                 onPress={() => handleHotTakeVote('agree')}
                 disabled={submitting}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
                 <Text style={styles.agreeText}>AGREE</Text>
               </TouchableOpacity>
@@ -191,7 +191,7 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
                 style={[styles.disagreeButton, submitting && styles.buttonDisabled]}
                 onPress={() => handleHotTakeVote('disagree')}
                 disabled={submitting}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
                 <Text style={styles.disagreeText}>DISAGREE</Text>
               </TouchableOpacity>
@@ -213,7 +213,7 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
                 style={[styles.submitButton, (!captionInput.trim() || submitting) && styles.buttonDisabled]}
                 onPress={handleSubmitCaption}
                 disabled={!captionInput.trim() || submitting}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
                 <Text style={styles.submitButtonText}>SUBMIT</Text>
               </TouchableOpacity>
@@ -243,7 +243,7 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
               ]}
               onPress={() => handleVoteSubmission(item.id)}
               disabled={!!my_vote}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
               <Text style={styles.voteContent}>{item.content}</Text>
               {my_vote === item.id && <Text style={styles.votedBadge}>YOUR VOTE</Text>}
@@ -279,7 +279,7 @@ export function MiniGameOverlay({ roomId, visible, onDismiss }: Props) {
             </View>
           )}
 
-          <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} activeOpacity={0.7}>
             <Text style={styles.dismissText}>CONTINUE</Text>
           </TouchableOpacity>
         </View>

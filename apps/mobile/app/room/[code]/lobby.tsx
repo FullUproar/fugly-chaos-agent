@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Pressable, Share, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Share, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSessionStore } from '@/stores/session-store';
@@ -39,11 +39,11 @@ export default function LobbyScreen() {
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 16 }]}>
-      <Pressable style={styles.codeContainer} onPress={handleShare}>
+      <TouchableOpacity style={styles.codeContainer} onPress={handleShare} activeOpacity={0.7}>
         <Text style={styles.codeLabel}>ROOM CODE</Text>
         <Text style={styles.code}>{code}</Text>
         <Text style={styles.codeHint}>Tap to share with your group</Text>
-      </Pressable>
+      </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>
         PLAYERS ({players.length})
@@ -74,7 +74,7 @@ export default function LobbyScreen() {
           style={[styles.startButton, starting && styles.buttonDisabled]}
           onPress={handleStart}
           disabled={starting}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
           {starting ? (
             <ActivityIndicator color={colors.accentText} />

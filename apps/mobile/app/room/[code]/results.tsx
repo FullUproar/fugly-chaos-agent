@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, FlatList, Image, Modal, Pressable,
+  View, Text, TouchableOpacity, FlatList, Image, Modal,
   ActivityIndicator, Dimensions, StyleSheet, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -222,7 +222,7 @@ export default function ResultsScreen() {
                 {photos.map((photo) => (
                   <TouchableOpacity
                     key={photo.id}
-                    activeOpacity={0.8}
+                    activeOpacity={0.7}
                     onPress={() => setExpandedPhoto(photo)}
                     style={styles.photoTouchable}
                   >
@@ -265,7 +265,7 @@ export default function ResultsScreen() {
               <TouchableOpacity
                 style={styles.shareRecapButton}
                 onPress={handleShareRecap}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
                 disabled={sharing}
               >
                 {sharing ? (
@@ -278,7 +278,7 @@ export default function ResultsScreen() {
               <TouchableOpacity
                 style={styles.savePhotosButton}
                 onPress={handleSaveToPhotos}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
                 disabled={saving}
               >
                 {saving ? (
@@ -317,7 +317,7 @@ export default function ResultsScreen() {
             </View>
           )}
 
-          <TouchableOpacity style={styles.homeButton} onPress={handleHome} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.homeButton} onPress={handleHome} activeOpacity={0.7}>
             <Text style={styles.homeButtonText}>BACK TO HOME</Text>
           </TouchableOpacity>
         </>
@@ -341,8 +341,8 @@ export default function ResultsScreen() {
     {/* Expanded photo modal */}
     {expandedPhoto && (
       <Modal transparent animationType="fade" onRequestClose={() => setExpandedPhoto(null)}>
-        <Pressable style={styles.photoOverlay} onPress={() => setExpandedPhoto(null)}>
-          <Pressable onPress={(e) => e.stopPropagation()}>
+        <TouchableOpacity style={styles.photoOverlay} onPress={() => setExpandedPhoto(null)} activeOpacity={1}>
+          <View>
             <Image
               source={{ uri: expandedPhoto.photo_url }}
               style={styles.photoFull}
@@ -354,7 +354,7 @@ export default function ResultsScreen() {
                 <Text style={styles.photoCaption}>{expandedPhoto.caption}</Text>
               ) : null}
             </View>
-          </Pressable>
+          </View>
           <TouchableOpacity
             style={styles.photoCloseButton}
             onPress={() => setExpandedPhoto(null)}
@@ -362,7 +362,7 @@ export default function ResultsScreen() {
           >
             <Text style={styles.photoCloseText}>X</Text>
           </TouchableOpacity>
-        </Pressable>
+        </TouchableOpacity>
       </Modal>
     )}
     </>

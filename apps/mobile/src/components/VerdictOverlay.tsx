@@ -117,6 +117,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export function VerdictOverlay({ visible, missionTitle, claimantNickname, votes, passed, pointsAwarded, onDone }: Props) {
   const [phase, setPhase] = useState<'intro' | 'votes' | 'reveal' | 'result'>('intro');
   const [revealedVotes, setRevealedVotes] = useState<number>(0);
+  const [flavorIndex, setFlavorIndex] = useState(0);
+  const [flavorDone, setFlavorDone] = useState(false);
   const fadeIn = useRef(new Animated.Value(0)).current;
   const scaleReveal = useRef(new Animated.Value(0.3)).current;
   const shakeX = useRef(new Animated.Value(0)).current;
@@ -126,6 +128,8 @@ export function VerdictOverlay({ visible, missionTitle, claimantNickname, votes,
     if (!visible) {
       setPhase('intro');
       setRevealedVotes(0);
+      setFlavorIndex(0);
+      setFlavorDone(false);
       fadeIn.setValue(0);
       scaleReveal.setValue(0.3);
       shakeX.setValue(0);
@@ -133,12 +137,12 @@ export function VerdictOverlay({ visible, missionTitle, claimantNickname, votes,
       return;
     }
 
-    // Phase 1: Intro — "VOTES ARE IN..."
+    // Phase 1: Intro — "VOTES ARE IN..." (exactly 2000ms)
     Animated.timing(fadeIn, { toValue: 1, duration: 400, useNativeDriver: true }).start();
 
     const introTimer = setTimeout(() => {
       setPhase('votes');
-    }, 1500);
+    }, 2000);
 
     return () => clearTimeout(introTimer);
   }, [visible, fadeIn]);
@@ -163,10 +167,11 @@ export function VerdictOverlay({ visible, missionTitle, claimantNickname, votes,
   useEffect(() => {
     if (phase !== 'reveal') return;
 
+    // "IT IS..." holds for exactly 1500ms, then instant result (0ms delay)
     const timer = setTimeout(() => {
       setPhase('result');
 
-      // Haptic + sound on reveal
+      // Haptic + sound on reveal — instant
       if (!passed) {
         triggerHaptic('verdictBullshit');
         playSound('VERDICT_BULLSHIT');
@@ -175,13 +180,8 @@ export function VerdictOverlay({ visible, missionTitle, claimantNickname, votes,
         playSound('VERDICT_LEGIT');
       }
 
-      // Animate the result
-      Animated.spring(scaleReveal, {
-        toValue: 1,
-        friction: 4,
-        tension: 80,
-        useNativeDriver: true,
-      }).start();
+      // Instant scale-in for result (no spring delay)
+      scaleReveal.setValue(1);
 
       // Screen shake for BULLSHIT
       if (!passed) {
@@ -201,16 +201,32 @@ export function VerdictOverlay({ visible, missionTitle, claimantNickname, votes,
 
       // Auto-dismiss
       setTimeout(onDone, 3500);
-    }, 1800);
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, [phase, passed, scaleReveal, shakeX, pointsAnim, onDone]);
 
+  // Flavor text cycling: 400ms per word, 5 cycles, then land on final
+  const flavorPool = passed ? PASSED_MESSAGES : FAILED_MESSAGES;
+  const finalIndex = useRef(Math.floor(Math.random() * flavorPool.length)).current;
+
+  useEffect(() => {
+    if (phase !== 'result' || flavorDone) return;
+    if (flavorIndex >= 5) {
+      setFlavorDone(true);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setFlavorIndex((prev) => prev + 1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [phase, flavorIndex, flavorDone]);
+
   if (!visible) return null;
 
-  const verdictMessage = passed
-    ? PASSED_MESSAGES[Math.floor(Math.random() * PASSED_MESSAGES.length)]
-    : FAILED_MESSAGES[Math.floor(Math.random() * FAILED_MESSAGES.length)];
+  const verdictMessage = flavorDone
+    ? flavorPool[finalIndex]
+    : flavorPool[(finalIndex + flavorIndex) % flavorPool.length];
 
   const verdictColor = passed ? colors.success : colors.error;
 

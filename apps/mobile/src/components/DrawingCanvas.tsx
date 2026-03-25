@@ -132,6 +132,7 @@ export function DrawingCanvas({ onSubmit, disabled }: Props) {
               key={c}
               style={[styles.colorDot, { backgroundColor: c }, selectedColor === c && styles.colorDotSelected]}
               onPress={() => setSelectedColor(c)}
+              activeOpacity={0.7}
             />
           ))}
         </View>
@@ -140,15 +141,16 @@ export function DrawingCanvas({ onSubmit, disabled }: Props) {
           <TouchableOpacity
             style={[styles.widthToggle, selectedWidth === WIDTHS[1] && styles.widthToggleThick]}
             onPress={() => setSelectedWidth(selectedWidth === WIDTHS[0] ? WIDTHS[1] : WIDTHS[0])}
+            activeOpacity={0.7}
           >
             <Text style={styles.widthText}>{selectedWidth === WIDTHS[0] ? 'THIN' : 'THICK'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.toolButton} onPress={handleUndo}>
+          <TouchableOpacity style={styles.toolButton} onPress={handleUndo} activeOpacity={0.7}>
             <Text style={styles.toolButtonText}>UNDO</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.toolButton} onPress={handleClear}>
+          <TouchableOpacity style={styles.toolButton} onPress={handleClear} activeOpacity={0.7}>
             <Text style={styles.toolButtonText}>CLEAR</Text>
           </TouchableOpacity>
 
@@ -156,6 +158,7 @@ export function DrawingCanvas({ onSubmit, disabled }: Props) {
             style={[styles.submitButton, disabled && styles.submitDisabled]}
             onPress={handleSubmit}
             disabled={disabled || strokes.length === 0}
+            activeOpacity={0.7}
           >
             <Text style={styles.submitText}>DONE</Text>
           </TouchableOpacity>

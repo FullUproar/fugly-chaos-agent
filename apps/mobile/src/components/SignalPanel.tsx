@@ -128,7 +128,7 @@ export function SignalPanel({ visible, players, myRoomPlayerId, onSend, onClose 
                     key={s.type}
                     style={[styles.signalButton, { borderColor: s.color }]}
                     onPress={() => handleSignal(s.type)}
-                    activeOpacity={0.8}
+                    activeOpacity={0.7}
                   >
                     <Text style={[styles.signalLabel, { color: s.color }]}>{s.label}</Text>
                   </TouchableOpacity>
@@ -144,7 +144,7 @@ export function SignalPanel({ visible, players, myRoomPlayerId, onSend, onClose 
                     key={p.id}
                     style={styles.playerButton}
                     onPress={() => handleTarget(p.id)}
-                    activeOpacity={0.8}
+                    activeOpacity={0.7}
                   >
                     <Text style={styles.playerName}>{p.nickname}</Text>
                   </TouchableOpacity>
@@ -153,7 +153,7 @@ export function SignalPanel({ visible, players, myRoomPlayerId, onSend, onClose 
               <TouchableOpacity
                 style={styles.backButton}
                 onPress={() => setShowTargetPicker(false)}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
                 <Text style={styles.backButtonText}>BACK</Text>
               </TouchableOpacity>

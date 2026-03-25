@@ -34,18 +34,22 @@ interface SessionState {
   allClaims: ClaimWithContext[];
   scores: PlayerScore[];
   recentMessages: Message[];
+  activeMiniGame: any | null;
 
   // Local UI state
   flashDismissed: boolean;
   pollDismissed: boolean;
+  miniGameDismissed: boolean;
   _lastFlashId: string | null;
   _lastPollId: string | null;
+  _lastMiniGameId: string | null;
 
   // Actions
   setIdentity: (playerId: string, roomPlayerId: string, roomId: string, nickname: string, isHost: boolean) => void;
   updateFromPoll: (state: RoomStateResponse) => void;
   dismissFlash: () => void;
   dismissPoll: () => void;
+  dismissMiniGame: () => void;
   reset: () => void;
 }
 
@@ -66,10 +70,13 @@ const initialState = {
   allClaims: [],
   scores: [],
   recentMessages: [],
+  activeMiniGame: null,
   flashDismissed: false,
   pollDismissed: false,
+  miniGameDismissed: false,
   _lastFlashId: null,
   _lastPollId: null,
+  _lastMiniGameId: null,
 };
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -88,6 +95,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const prev = get();
     const newFlashId = state.active_flash?.id ?? null;
     const newPollId = state.active_poll?.id ?? null;
+    const newMiniGameId = state.active_mini_game?.session?.id ?? null;
 
     set({
       room: state.room,
@@ -101,11 +109,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       allClaims: state.all_claims ?? [],
       scores: state.scores,
       recentMessages: state.recent_messages ?? [],
-      // Reset dismissed state when a new flash/poll arrives
+      activeMiniGame: state.active_mini_game ?? null,
+      // Reset dismissed state when a new flash/poll/mini-game arrives
       flashDismissed: newFlashId !== prev._lastFlashId ? false : prev.flashDismissed,
       pollDismissed: newPollId !== prev._lastPollId ? false : prev.pollDismissed,
+      miniGameDismissed: newMiniGameId !== prev._lastMiniGameId ? false : prev.miniGameDismissed,
       _lastFlashId: newFlashId,
       _lastPollId: newPollId,
+      _lastMiniGameId: newMiniGameId as string | null,
     });
 
     // Update persisted session with room code for rejoin
@@ -124,6 +135,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   dismissFlash: () => set({ flashDismissed: true }),
   dismissPoll: () => set({ pollDismissed: true }),
+  dismissMiniGame: () => set({ miniGameDismissed: true }),
 
   reset: () => {
     set(initialState);

@@ -132,6 +132,7 @@ Deno.serve(async (req) => {
       signalsResult,
       claimsResult,
       messagesResult,
+      miniGameResult,
     ] = await Promise.all([
       supabase.from('rooms').select('*').eq('id', room_id).single(),
       supabase.from('room_players').select('*').eq('room_id', room_id).order('joined_at'),
@@ -146,7 +147,7 @@ Deno.serve(async (req) => {
       // All claims for this room's missions
       supabase
         .from('claims')
-        .select('*, missions!inner(title, points, room_id, room_player_id, type)')
+        .select('*, missions!inner(title, description, points, room_id, room_player_id, type)')
         .eq('missions.room_id', room_id)
         .order('claimed_at', { ascending: false }),
       // Recent messages (room-wide + DMs for this player) — last 10
@@ -157,11 +158,50 @@ Deno.serve(async (req) => {
         .or(`recipient_id.is.null,sender_id.eq.${myRoomPlayer.id},recipient_id.eq.${myRoomPlayer.id}`)
         .order('created_at', { ascending: false })
         .limit(10),
+      // Active mini-game session
+      supabase
+        .from('mini_game_sessions')
+        .select('*')
+        .eq('room_id', room_id)
+        .in('status', ['SUBMITTING', 'VOTING', 'REVEALING'])
+        .order('created_at', { ascending: false })
+        .limit(1),
     ]);
 
     const players = playersResult.data ?? [];
     const activeFlash = (flashResult.data ?? [])[0] ?? null;
     const activePoll = (pollResult.data ?? [])[0] ?? null;
+    const activeMiniGameSession = (miniGameResult.data ?? [])[0] ?? null;
+
+    // Build active mini-game context
+    let activeMiniGame: Record<string, unknown> | null = null;
+    if (activeMiniGameSession) {
+      const sessionId = activeMiniGameSession.id;
+
+      // Get current player's submission
+      const { data: mySubmission } = await supabase
+        .from('mini_game_submissions')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('room_player_id', myRoomPlayer.id)
+        .single();
+
+      // Get all submissions if VOTING or REVEALING
+      let allSubmissions: unknown[] | null = null;
+      if (activeMiniGameSession.status === 'VOTING' || activeMiniGameSession.status === 'REVEALING') {
+        const { data: subs } = await supabase
+          .from('mini_game_submissions')
+          .select('*')
+          .eq('session_id', sessionId);
+        allSubmissions = subs ?? [];
+      }
+
+      activeMiniGame = {
+        session: activeMiniGameSession,
+        my_submission: mySubmission ?? null,
+        submissions: allSubmissions,
+      };
+    }
 
     // Check if caller voted on active poll
     let myPollVote: string | null = null;
@@ -189,7 +229,7 @@ Deno.serve(async (req) => {
       : { data: [] };
 
     const allClaims = (claimsResult.data ?? []).map((c: Record<string, unknown>) => {
-      const mission = c.missions as { title: string; points: number; room_player_id: string; type: string };
+      const mission = c.missions as { title: string; description: string; points: number; room_player_id: string; type: string };
       const claimant = players.find((p: { id: string }) => p.id === c.room_player_id);
       const claimVotes = (votes ?? []).filter((v: { claim_id: string }) => v.claim_id === c.id);
       const myVote = claimVotes.find((v: { room_player_id: string }) => v.room_player_id === myRoomPlayer.id);
@@ -203,12 +243,17 @@ Deno.serve(async (req) => {
           claimed_at: c.claimed_at,
           resolved_at: c.resolved_at,
           points_awarded: c.points_awarded,
+          voting_mechanic: c.voting_mechanic ?? 'standard',
+          mechanic_data: c.mechanic_data ?? {},
         },
         mission_title: mission.title,
+        mission_description: mission.description,
         mission_points: mission.points,
         claimant_nickname: claimant?.nickname ?? 'Unknown',
         votes: claimVotes,
         my_vote: myVote?.vote ?? null,
+        voting_mechanic: (c.voting_mechanic as string) ?? 'standard',
+        mechanic_data: (c.mechanic_data as Record<string, unknown>) ?? {},
       };
     });
 
@@ -237,6 +282,7 @@ Deno.serve(async (req) => {
       all_claims: allClaims,
       scores: scores.sort((a: { score: number }, b: { score: number }) => b.score - a.score),
       recent_messages: messagesResult.data ?? [],
+      active_mini_game: activeMiniGame,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

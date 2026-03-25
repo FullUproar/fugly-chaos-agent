@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, Pressable, TextInput,
+  View, Text, TouchableOpacity, TextInput,
   FlatList, KeyboardAvoidingView, Platform, Modal,
   Animated, StyleSheet,
 } from 'react-native';
@@ -267,17 +267,19 @@ export function TableTalk({ visible, roomId, myRoomPlayerId, players, recentMess
 
           {/* Tabs */}
           <View style={styles.tabRow}>
-            <Pressable
+            <TouchableOpacity
               style={[styles.chatTab, activeTab === 'TABLE' && styles.chatTabActive]}
               onPress={() => handleTabChange('TABLE')}
+              activeOpacity={0.7}
             >
               <Text style={[styles.chatTabText, activeTab === 'TABLE' && styles.chatTabTextActive]}>
                 TABLE
               </Text>
-            </Pressable>
-            <Pressable
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.chatTab, activeTab === 'WHISPER' && styles.chatTabActive]}
               onPress={() => handleTabChange('WHISPER')}
+              activeOpacity={0.7}
             >
               <Text style={[styles.chatTabText, activeTab === 'WHISPER' && styles.chatTabTextActive]}>
                 WHISPER
@@ -287,7 +289,7 @@ export function TableTalk({ visible, roomId, myRoomPlayerId, players, recentMess
                   <Text style={styles.dmBadgeText}>{dmTarget.nickname}</Text>
                 </View>
               )}
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           {/* Player picker for DM */}

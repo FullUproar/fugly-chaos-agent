@@ -59,15 +59,23 @@ export interface RoomStateResponse {
   all_claims: ClaimWithContext[];
   scores: PlayerScore[];
   recent_messages: Message[];
+  active_mini_game: {
+    session: Record<string, unknown>;
+    my_submission: Record<string, unknown> | null;
+    submissions: Array<Record<string, unknown>> | null;
+  } | null;
 }
 
 export interface ClaimWithContext {
   claim: Claim;
   mission_title: string;
+  mission_description?: string;
   mission_points: number;
   claimant_nickname: string;
   votes: Vote[];
   my_vote: VoteType | null;
+  voting_mechanic: string;
+  mechanic_data: Record<string, any>;
 }
 
 export interface PlayerScore {
@@ -97,12 +105,17 @@ export interface ClaimMissionRequest {
 export interface ClaimMissionResponse {
   claim_id: string;
   claimed_at: string;
+  mechanic?: { id: string; name: string; description: string; reveal_text: string; data: Record<string, any> };
 }
 
 // POST /vote-claim
 export interface VoteClaimRequest {
   claim_id: string;
   vote: VoteType;
+  action?: 'vote' | 'pitch' | 'volunteer' | 'bid' | 'bribe_offer' | 'alibi_story' | 'hot_seat_answer' | 'rate';
+  amount?: number;
+  text?: string;
+  rating?: number;
 }
 export interface VoteClaimResponse {
   resolved: boolean;
@@ -134,9 +147,10 @@ export interface Highlight {
 // POST /trigger-event (dev backdoor)
 export interface TriggerEventRequest {
   room_id: string;
-  event_type: 'flash_mission' | 'poll';
+  event_type: 'flash_mission' | 'poll' | 'mini_game';
   flash_type?: FlashType;
   compress_timers?: boolean;
+  mini_game_type?: 'drawing' | 'caption' | 'hot_take' | 'lie_detector';
 }
 export interface TriggerEventResponse {
   event_id: string;

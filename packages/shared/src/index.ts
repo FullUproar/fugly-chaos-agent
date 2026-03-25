@@ -7,5 +7,6 @@ export * from './constants/flash-missions';
 export * from './constants/poll-questions';
 export * from './constants/mini-games';
 export * from './constants/teasers';
+export * from './constants/voting-mechanics';
 export * from './utils/room-code';
 export * from './utils/scoring';

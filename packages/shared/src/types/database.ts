@@ -150,6 +150,8 @@ export interface Claim {
   claimed_at: string;
   resolved_at: string | null;
   points_awarded: number;
+  voting_mechanic?: string;
+  mechanic_data?: Record<string, any>;
 }
 
 export interface Vote {

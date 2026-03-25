@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { GAME_TYPE_OPTIONS } from '@chaos-agent/shared';
@@ -55,16 +55,17 @@ export default function CreateRoomScreen() {
 
       <View style={styles.options}>
         {GAME_TYPE_OPTIONS.map((opt) => (
-          <Pressable
+          <TouchableOpacity
             key={opt.value}
             style={[styles.option, gameType === opt.value && styles.optionSelected]}
             onPress={() => setGameType(opt.value)}
+            activeOpacity={0.7}
           >
             <Text style={[styles.optionLabel, gameType === opt.value && styles.optionLabelSelected]}>
               {opt.label}
             </Text>
             <Text style={styles.optionDesc}>{opt.description}</Text>
-          </Pressable>
+          </TouchableOpacity>
         ))}
       </View>
 
@@ -92,7 +93,7 @@ export default function CreateRoomScreen() {
         style={[styles.createButton, loading && styles.buttonDisabled]}
         onPress={handleCreate}
         disabled={loading}
-        activeOpacity={0.8}
+        activeOpacity={0.7}
       >
         {loading ? (
           <ActivityIndicator color={colors.accentText} />

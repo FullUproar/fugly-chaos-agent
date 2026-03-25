@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, Modal, Animated, StyleSheet, Share, Pressable,
+  View, Text, TouchableOpacity, Modal, Animated, StyleSheet, Share,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
@@ -69,7 +69,7 @@ export function RoomCodeShare({ visible, roomCode, onClose }: Props) {
 
   return (
     <Modal transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1}>
         <Animated.View
           style={[
             styles.overlay,
@@ -79,7 +79,7 @@ export function RoomCodeShare({ visible, roomCode, onClose }: Props) {
             },
           ]}
         >
-          <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.card}>
             {/* Close button */}
             <TouchableOpacity style={styles.closeHit} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.closeText}>X</Text>
@@ -108,11 +108,11 @@ export function RoomCodeShare({ visible, roomCode, onClose }: Props) {
 
             {/* Actions */}
             <View style={styles.actions}>
-              <TouchableOpacity style={styles.shareButton} onPress={handleShare} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.shareButton} onPress={handleShare} activeOpacity={0.7}>
                 <Text style={styles.shareButtonText}>SHARE</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.copyButton} onPress={handleCopy} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.copyButton} onPress={handleCopy} activeOpacity={0.7}>
                 <Text style={styles.copyButtonText}>COPY CODE</Text>
               </TouchableOpacity>
             </View>
@@ -121,9 +121,9 @@ export function RoomCodeShare({ visible, roomCode, onClose }: Props) {
             <Animated.View style={[styles.copiedToast, { opacity: copiedAnim }]} pointerEvents="none">
               <Text style={styles.copiedText}>COPIED!</Text>
             </Animated.View>
-          </Pressable>
+          </View>
         </Animated.View>
-      </Pressable>
+      </TouchableOpacity>
     </Modal>
   );
 }

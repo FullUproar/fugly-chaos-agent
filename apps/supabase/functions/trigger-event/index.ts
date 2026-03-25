@@ -4,7 +4,14 @@ import { generateFlashMission, generatePoll } from '../_shared/mission-pool.ts';
 import { sendPush } from '../_shared/push.ts';
 import { generateWithSystem } from '../_shared/claude.ts';
 
-const AI_FLASH_SYSTEM = `You are Fugly's Chaos Agent — a mischievous party game AI generating a single flash mission that reacts to what just happened in the room.
+const GAME_TYPE_LABELS: Record<string, string> = {
+  drawing: 'DRAW IT',
+  caption: 'CAPTION THIS',
+  hot_take: 'HOT TAKE',
+  lie_detector: 'LIE DETECTOR',
+};
+
+const AI_FLASH_SYSTEM =`You are Fugly's Chaos Agent — a mischievous party game AI generating a single flash mission that reacts to what just happened in the room.
 
 RULES:
 - Generate ONE flash mission that references recent events, player names, and the room's energy.
@@ -20,7 +27,7 @@ Deno.serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
-    const { room_id, event_type, flash_type, compress_timers, mode = 'static' } = await req.json();
+    const { room_id, event_type, flash_type, compress_timers, mode = 'static', mini_game_type } = await req.json();
 
     if (!room_id || !event_type) {
       return new Response(JSON.stringify({ error: 'room_id and event_type required' }), {
@@ -142,6 +149,59 @@ Deno.serve(async (req) => {
         event_id: poll.id,
         type: 'poll',
         question: poll.question,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (event_type === 'mini_game') {
+      const gameType = mini_game_type ?? 'caption';
+      const prompts: Record<string, string[]> = {
+        drawing: ['Draw the current room vibe', 'Draw the player in the lead', 'Draw chaos'],
+        caption: ['Caption this moment', 'Write a tabloid headline about this game', 'What is the leader thinking right now?'],
+        hot_take: ['Pineapple on pizza is valid', 'The person in last place is actually winning at life', 'Board games are better than video games'],
+        lie_detector: ['Tell us something about yourself — truth or lie, you decide'],
+      };
+      const pool = prompts[gameType] ?? prompts.caption;
+      const prompt = pool[Math.floor(Math.random() * pool.length)];
+
+      // Invoke the mini-game function internally
+      const miniGamePayload = {
+        action: 'start',
+        room_id,
+        game_type: gameType,
+        prompt,
+        points: 15,
+        submission_time_sec: compress_timers ? 30 : 60,
+        voting_time_sec: compress_timers ? 20 : 45,
+      };
+
+      const response = await fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/mini-game`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify(miniGamePayload),
+        },
+      );
+
+      const result = await response.json();
+
+      sendPush({
+        room_id,
+        title: 'Mini-Game!',
+        body: `MINI-GAME: ${GAME_TYPE_LABELS[gameType] ?? gameType.toUpperCase()} — ${prompt}`,
+        data: { type: 'mini_game', game_type: gameType },
+        category: 'MINI_GAME',
+      });
+
+      return new Response(JSON.stringify({
+        event_id: result.game?.id ?? 'unknown',
+        type: 'mini_game',
+        game_type: gameType,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
