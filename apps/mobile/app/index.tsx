@@ -188,7 +188,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.version}>v0.1.0 (build 5)</Text>
+      <Text style={styles.version}>v0.1.6</Text>
     </ScrollView>
   );
 }

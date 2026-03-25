@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chaos Agent",
     "slug": "chaos-agent",
-    "version": "0.1.0",
+    "version": "0.1.6",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.fugly.chaosagent",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0A",
         "foregroundImage": "./assets/android-icon-foreground.png",
