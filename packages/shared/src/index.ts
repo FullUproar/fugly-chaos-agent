@@ -10,5 +10,6 @@ export * from './constants/teasers';
 export * from './constants/voting-mechanics';
 export * from './constants/mini-game-variations';
 export * from './constants/mini-game-prompts';
+export * from './constants/game-context-profiles';
 export * from './utils/room-code';
 export * from './utils/scoring';

@@ -44,8 +44,23 @@ export default function PlayScreen() {
     activeClaims, allClaims, scores, roomPlayerId, players,
     flashDismissed, pollDismissed, miniGameDismissed,
     dismissFlash, dismissPoll, dismissMiniGame,
-    activeMiniGame,
+    activeMiniGame, gameContext,
   } = useSessionStore();
+
+  // Auto-break suggestion state
+  const [breakSuggested, setBreakSuggested] = useState(false);
+  const breakTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (gameContext?.autoBreakEnabled && gameContext.autoBreakAfterMinutes > 0 && !breakSuggested) {
+      breakTimerRef.current = setTimeout(() => {
+        setBreakSuggested(true);
+      }, gameContext.autoBreakAfterMinutes * 60_000);
+    }
+    return () => {
+      if (breakTimerRef.current) clearTimeout(breakTimerRef.current);
+    };
+  }, [gameContext?.autoBreakEnabled, gameContext?.autoBreakAfterMinutes, breakSuggested]);
   usePolling(roomId);
 
   useEffect(() => {
@@ -192,7 +207,8 @@ export default function PlayScreen() {
     api.voteClaim({ claim_id: claimId, vote }).catch(() => {});
   };
 
-  const showFlash = activeFlash && !flashDismissed && activeFlash.status === 'REVEALED';
+  const flashEnabled = gameContext?.flashEnabled !== false;
+  const showFlash = flashEnabled && activeFlash && !flashDismissed && activeFlash.status === 'REVEALED';
   const showMiniGame = activeMiniGame && !miniGameDismissed;
   const showPoll = activePoll && !pollDismissed;
   const bottomPad = insets.bottom + 80;
@@ -210,6 +226,16 @@ export default function PlayScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Auto-break suggestion */}
+      {breakSuggested && (
+        <View style={styles.breakBar}>
+          <Text style={styles.breakText}>Been at it for a while. Take a break?</Text>
+          <TouchableOpacity onPress={() => setBreakSuggested(false)} activeOpacity={0.7}>
+            <Text style={styles.breakDismiss}>DISMISS</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* End game confirmation */}
       {showEndConfirm && (
@@ -697,6 +723,15 @@ const styles = StyleSheet.create({
   },
   endGameTouch: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
   endGameLink: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },
+
+  // Auto-break suggestion
+  breakBar: {
+    backgroundColor: colors.surface, paddingHorizontal: 16, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceBorder,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  breakText: { fontSize: 14, color: colors.textSecondary, fontWeight: '500', flex: 1 },
+  breakDismiss: { fontSize: 13, color: colors.accent, fontWeight: '700', paddingHorizontal: 8 },
 
   // End game confirmation
   confirmBar: {

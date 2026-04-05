@@ -65,6 +65,14 @@ export interface RoomStateResponse {
     my_submission: Record<string, unknown> | null;
     submissions: Array<Record<string, unknown>> | null;
   } | null;
+  game_context?: {
+    gameType: string;
+    flashEnabled: boolean;
+    autoBreakEnabled: boolean;
+    autoBreakAfterMinutes: number;
+    provocativePolls: boolean;
+    flashPointMultiplier: number;
+  };
 }
 
 export interface ClaimWithContext {

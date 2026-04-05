@@ -1,5 +1,6 @@
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { getAdminClient, getAuthUserId } from '../_shared/supabase-client.ts';
+import { getGameContextProfile } from '../_shared/game-context-profiles.ts';
 
 const AUTO_ACCEPT_FLASH_SECONDS = 60;
 const AUTO_ACCEPT_STANDING_SECONDS = 180; // 3 minutes for standing missions
@@ -270,6 +271,19 @@ Deno.serve(async (req) => {
       claims_lost: 0,
     }));
 
+    // Build game context from room's game_type
+    const roomData = roomResult.data as Record<string, unknown> | null;
+    const gameType = (roomData?.game_type as string) ?? 'custom';
+    const profile = getGameContextProfile(gameType);
+    const gameContext = {
+      gameType: profile.gameType,
+      flashEnabled: profile.flashEnabled,
+      autoBreakEnabled: profile.autoBreakEnabled,
+      autoBreakAfterMinutes: profile.autoBreakAfterMinutes,
+      provocativePolls: profile.provocativePolls,
+      flashPointMultiplier: profile.flashPointMultiplier,
+    };
+
     return new Response(JSON.stringify({
       room: roomResult.data,
       players,
@@ -283,6 +297,7 @@ Deno.serve(async (req) => {
       scores: scores.sort((a: { score: number }, b: { score: number }) => b.score - a.score),
       recent_messages: messagesResult.data ?? [],
       active_mini_game: activeMiniGame,
+      game_context: gameContext,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

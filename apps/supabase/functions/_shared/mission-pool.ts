@@ -85,6 +85,21 @@ const POLL_POOL: string[] = [
   "Who's the funniest person here?",
 ];
 
+// --- Provocative Poll Pool (bar_night) ---
+
+const PROVOCATIVE_POLL_POOL: string[] = [
+  "Who's the worst driver here?",
+  "Who's most likely to drunk-text their ex?",
+  "Who would be the worst roommate?",
+  "Who has the most embarrassing music taste?",
+  "Who would survive the longest on a desert island?",
+  "Who talks the most trash but can't back it up?",
+  "Who's most likely to start a bar fight?",
+  "Who would be the worst at keeping a secret?",
+  "Who's most likely to ghost someone?",
+  "Who has the worst taste in movies?",
+];
+
 // --- Helpers ---
 
 function pickRandom<T>(pool: T[], count: number): T[] {
@@ -100,9 +115,13 @@ interface PlayerInfo {
 export async function generateStandingMissions(
   roomId: string,
   count: number = 8,
+  allowedCategories: string[] | null = null,
 ): Promise<void> {
   const supabase = getAdminClient();
-  const selected = pickRandom(STANDING_POOL, count);
+  const pool = allowedCategories
+    ? STANDING_POOL.filter((t) => allowedCategories.includes(t.category))
+    : STANDING_POOL;
+  const selected = pickRandom(pool, count);
 
   const missions = selected.map((t) => ({
     room_id: roomId,
@@ -128,7 +147,7 @@ export async function generateFlashMission(
   players: PlayerInfo[],
   compressTimers: boolean = false,
   specificFlashType?: 'race' | 'target' | 'group',
-): Promise<{ id: string; title: string }> {
+): Promise<{ id: string; title: string; points: number }> {
   const supabase = getAdminClient();
 
   // Filter by flash type if specified
@@ -169,7 +188,7 @@ export async function generateFlashMission(
       visible_to: 'all',
       target_player_id: targetPlayerId,
     })
-    .select('id, title')
+    .select('id, title, points')
     .single();
 
   if (error) throw error;
@@ -180,10 +199,12 @@ export async function generatePoll(
   roomId: string,
   players: PlayerInfo[],
   compressTimers: boolean = false,
+  provocative: boolean = false,
 ): Promise<{ id: string; question: string }> {
   const supabase = getAdminClient();
 
-  const [question] = pickRandom(POLL_POOL, 1);
+  const questionPool = provocative ? PROVOCATIVE_POLL_POOL : POLL_POOL;
+  const [question] = pickRandom(questionPool, 1);
   const options = players.map((p) => p.nickname);
   const durationMs = compressTimers ? 15000 : 30000;
   const expiresAt = new Date(Date.now() + durationMs).toISOString();

@@ -35,6 +35,24 @@ export interface ScenarioVariation {
   aiPersonalizationDepth?: 'deep' | 'light' | 'none';
   /** Use provocative poll pool instead of standard. */
   provocativePolls?: boolean;
+  /** Force breaks at a fixed interval in minutes (host superpowers). */
+  autoBreakIntervalMin?: number;
+  /** Auto-target quiet/low-engagement players with events. */
+  autoTargetQuietPlayers?: boolean;
+  /** Virality-focused: prefer shareable event types (drawing, caption, photo challenges). */
+  viralityFocus?: boolean;
+  /** AI references past sessions and running jokes between players. */
+  aiMemoryEnabled?: boolean;
+  /** AI adjusts event frequency based on real-time group energy levels. */
+  aiAdaptiveFrequency?: boolean;
+  /** Events specifically reference or target the newbie player to include them. */
+  buddyTargeting?: boolean;
+  /** First event includes extended explanation/tutorial tooltip. */
+  tutorialTooltips?: boolean;
+  /** Leaderboard-focused competitive mode with higher point values. */
+  competitiveLeaderboard?: boolean;
+  /** Polls phrased as conversation-starter icebreakers. */
+  icebreakersMode?: boolean;
 }
 
 export interface ScenarioDefinition {
@@ -55,16 +73,16 @@ export interface ScenarioDefinition {
   variations: ScenarioVariation[];
 }
 
-// ── Board Game Variations ────────────────────────────────────────────────────
-// Sim data: 5.6/10 fun, 0.3 events/10min (way too low), Marcus hated interruptions
-// during strategy moments, Diana frustrated by vagueness. Need to test slower pace
-// vs current vs even slower with tension suppression.
+// ── Board Game Variations (Round 2) ──────────────────────────────────────────
+// Round 1 winner: A (Conservative). Now refine around that winner with tighter
+// variations and test whether host superpowers or removing standing missions
+// improve the experience further.
 
 const boardGameVariations: ScenarioVariation[] = [
   {
     id: 'casual_board_game_A',
     label: 'A',
-    description: 'Conservative: sparse events, suppress during tense moments, auto-breaks ON',
+    description: 'R1 Winner baseline: sparse events, tension suppression, auto-breaks',
     eventFrequency: {
       flashMissionIntervalMin: [20, 30],
       pollIntervalMin: [30, 40],
@@ -77,23 +95,31 @@ const boardGameVariations: ScenarioVariation[] = [
   {
     id: 'casual_board_game_B',
     label: 'B',
-    description: 'Moderate: balanced events, suppress during tension',
+    description: 'Winner + host superpowers: forced breaks every 30min, auto-target quiet players',
     eventFrequency: {
-      flashMissionIntervalMin: [12, 18],
-      pollIntervalMin: [20, 25],
-      miniGameIntervalMin: [30, 40],
+      flashMissionIntervalMin: [20, 30],
+      pollIntervalMin: [30, 40],
+      miniGameIntervalMin: [45, 60],
     },
     suppressDuringHighTension: true,
+    autoBreakEnabled: true,
+    autoBreakThreshold: 4,
+    autoBreakIntervalMin: 30,
+    autoTargetQuietPlayers: true,
   },
   {
     id: 'casual_board_game_C',
     label: 'C',
-    description: 'Current settings (control group)',
+    description: 'Winner + NO standing missions: only flash/poll/mini-game, test if standing missions matter',
     eventFrequency: {
-      flashMissionIntervalMin: [8, 15],
-      pollIntervalMin: [12, 20],
-      miniGameIntervalMin: [18, 30],
+      flashMissionIntervalMin: [20, 30],
+      pollIntervalMin: [30, 40],
+      miniGameIntervalMin: [45, 60],
     },
+    suppressDuringHighTension: true,
+    autoBreakEnabled: true,
+    autoBreakThreshold: 4,
+    standingMissionCount: 0,
   },
 ];
 
@@ -101,8 +127,8 @@ const casualBoardGame: ScenarioDefinition = {
   id: 'casual_board_game',
   name: 'Casual Board Game Night',
   description:
-    'A typical board game night with 6 friends. Mixed chaos tolerance, one phone addict, ' +
-    'one competitor who wants to focus, and a host keeping things together.',
+    'Round 2: Conservative pacing won R1. Testing host superpowers and zero standing missions ' +
+    'against the winner baseline. 6 players, mixed chaos tolerance.',
   playerCount: 6,
   personaIds: ['marcus', 'jade', 'tyler', 'pat', 'river', 'diana'],
   gameType: 'board_game',
@@ -116,41 +142,43 @@ const casualBoardGame: ScenarioDefinition = {
   variations: boardGameVariations,
 };
 
-// ── Party Game Variations ────────────────────────────────────────────────────
-// Sim data: 5.3/10 fun, 1.2 events/10min, Marcus (3.6 fun) hated relentless pace,
-// but Alex/Jade/Pat loved it. Need to test if more chaos helps the majority
-// while potentially alienating competitive players.
+// ── Party Game Variations (Round 2) ──────────────────────────────────────────
+// Round 1 winner: C (Breathing Room). Refine around that pacing with heavy
+// mini-game weighting and virality-focused event types.
 
 const partyGameVariations: ScenarioVariation[] = [
   {
     id: 'chaotic_party_game_A',
     label: 'A',
-    description: 'Relentless: maximum event density for chaos lovers',
-    eventFrequency: {
-      flashMissionIntervalMin: [3, 5],
-      pollIntervalMin: [6, 8],
-      miniGameIntervalMin: [10, 15],
-    },
-  },
-  {
-    id: 'chaotic_party_game_B',
-    label: 'B',
-    description: 'Moderate: balanced pace with breathing room',
-    eventFrequency: {
-      flashMissionIntervalMin: [5, 8],
-      pollIntervalMin: [10, 15],
-      miniGameIntervalMin: [15, 20],
-    },
-  },
-  {
-    id: 'chaotic_party_game_C',
-    label: 'C',
-    description: 'Breathing Room: slower pace, more space between events',
+    description: 'R1 Winner baseline: breathing room pacing',
     eventFrequency: {
       flashMissionIntervalMin: [8, 12],
       pollIntervalMin: [15, 20],
       miniGameIntervalMin: [20, 30],
     },
+  },
+  {
+    id: 'chaotic_party_game_B',
+    label: 'B',
+    description: 'Winner + heavy mini-game weight: mini-games every 12-15min, less flash',
+    eventFrequency: {
+      flashMissionIntervalMin: [15, 20],
+      pollIntervalMin: [15, 20],
+      miniGameIntervalMin: [12, 15],
+    },
+    miniGameWeight: 3.0,
+  },
+  {
+    id: 'chaotic_party_game_C',
+    label: 'C',
+    description: 'Winner + virality focus: drawing/caption/photo challenges, shareable moments',
+    eventFrequency: {
+      flashMissionIntervalMin: [8, 12],
+      pollIntervalMin: [15, 20],
+      miniGameIntervalMin: [20, 30],
+    },
+    viralityFocus: true,
+    allowedMiniGameTypes: ['caption', 'drawing', 'photo_challenge', 'hot_take'],
   },
 ];
 
@@ -158,8 +186,8 @@ const chaoticPartyGame: ScenarioDefinition = {
   id: 'chaotic_party_game',
   name: 'Maximum Chaos Party Game',
   description:
-    'A high-energy party game night where most players are all-in on chaos. ' +
-    'Events fire frequently and the instigator is in full effect.',
+    'Round 2: Breathing Room pacing won R1. Testing heavy mini-game weighting and ' +
+    'virality-focused events (drawing/caption/photo) against the winner baseline.',
   playerCount: 6,
   personaIds: ['alex', 'jade', 'pat', 'tyler', 'sam', 'marcus'],
   gameType: 'party_game',
@@ -173,16 +201,15 @@ const chaoticPartyGame: ScenarioDefinition = {
   variations: partyGameVariations,
 };
 
-// ── Bar Night Variations ─────────────────────────────────────────────────────
-// Sim data: 6.1/10 fun (HIGHEST), 0.8 events/10min, 100% would play again,
-// 100% would recommend. Standing claims are the star (6.3 avg fun).
-// Fewer standing missions, bigger flash rewards, provocative polls.
+// ── Bar Night Variations (Round 2) ───────────────────────────────────────────
+// Round 1 winner: A (Background). Refine around that casual pace with
+// social-heavy and competitive-edge variations.
 
 const barNightVariations: ScenarioVariation[] = [
   {
     id: 'bar_night_brawl_A',
     label: 'A',
-    description: 'Background: casual pace, fewer standing missions, low-key',
+    description: 'R1 Winner baseline: casual pace, 5 standing missions, low-key background',
     eventFrequency: {
       flashMissionIntervalMin: [10, 15],
       pollIntervalMin: [15, 20],
@@ -193,30 +220,27 @@ const barNightVariations: ScenarioVariation[] = [
   {
     id: 'bar_night_brawl_B',
     label: 'B',
-    description: 'Party Mode: moderate pace, bigger flash rewards, provocative polls',
+    description: 'Winner + social-heavy: more polls, fewer flashes, social-only standing missions',
     eventFrequency: {
-      flashMissionIntervalMin: [5, 8],
-      pollIntervalMin: [8, 12],
-      miniGameIntervalMin: [15, 20],
+      flashMissionIntervalMin: [18, 25],
+      pollIntervalMin: [10, 14],
+      miniGameIntervalMin: [25, 35],
     },
     standingMissionCount: 5,
-    flashPointMultiplier: 1.5,
-    provocativePolls: true,
-    allowedMiniGameTypes: ['worst_advice', 'speed_superlative', 'hot_take', 'caption'],
+    allowedMissionCategories: ['social'],
   },
   {
     id: 'bar_night_brawl_C',
     label: 'C',
-    description: 'Chaos Max: relentless pace, fewer rules, maximum provocation',
+    description: 'Winner + competitive edge: leaderboard-focused, higher points, more claims',
     eventFrequency: {
-      flashMissionIntervalMin: [3, 5],
-      pollIntervalMin: [5, 8],
-      miniGameIntervalMin: [8, 12],
+      flashMissionIntervalMin: [10, 15],
+      pollIntervalMin: [15, 20],
+      miniGameIntervalMin: [25, 35],
     },
     standingMissionCount: 5,
+    competitiveLeaderboard: true,
     flashPointMultiplier: 2.0,
-    provocativePolls: true,
-    allowedMiniGameTypes: ['worst_advice', 'speed_superlative', 'hot_take', 'caption'],
   },
 ];
 
@@ -224,8 +248,8 @@ const barNightBrawl: ScenarioDefinition = {
   id: 'bar_night_brawl',
   name: 'Bar Night Brawl',
   description:
-    'A rowdy bar night with heavy drinkers and short attention spans. ' +
-    'High signal frequency, lots of phone usage, moderate chaos.',
+    'Round 2: Background pacing won R1. Testing social-heavy (more polls, social-only standing) ' +
+    'and competitive edge (leaderboard, higher points) against the winner baseline.',
   playerCount: 5,
   personaIds: ['alex', 'jade', 'tyler', 'pat', 'river'],
   gameType: 'bar_night',
@@ -239,22 +263,21 @@ const barNightBrawl: ScenarioDefinition = {
   variations: barNightVariations,
 };
 
-// ── Dinner Party Variations ──────────────────────────────────────────────────
-// Sim data: 3.6/10 fun (WORST), humor quality 3.2/10, Marcus 2.1 fun,
-// Tyler 1.4 fun. Performance challenges and flash missions don't work here.
-// Social polls and alliance missions only for variation A.
+// ── Dinner Party Variations (Round 2) ────────────────────────────────────────
+// Round 1 winner: A (Minimal/Social Only). Refine around that minimal approach
+// with conversation-starter polls and zero-standing-mission variations.
 
 const dinnerPartyVariations: ScenarioVariation[] = [
   {
     id: 'chill_dinner_party_A',
     label: 'A',
-    description: 'Minimal: polls only (no flash), social/alliance missions only, gentle mini-games',
+    description: 'R1 Winner baseline: no flash, social/alliance only, gentle mini-games',
     eventFrequency: {
       flashMissionIntervalMin: [25, 35],
-      pollIntervalMin: [20, 30],
+      pollIntervalMin: [12, 18],
       miniGameIntervalMin: [40, 50],
     },
-    allowedEventTypes: ['poll', 'mini_game'], // NO flash missions
+    allowedEventTypes: ['poll', 'mini_game'],
     allowedMissionCategories: ['social', 'alliance'],
     allowedMiniGameTypes: ['caption', 'hot_take', 'assumption_arena'],
     standingMissionCount: 5,
@@ -262,24 +285,31 @@ const dinnerPartyVariations: ScenarioVariation[] = [
   {
     id: 'chill_dinner_party_B',
     label: 'B',
-    description: 'Social Focus: social-only flash missions, frequent polls, social mini-games',
+    description: 'Winner + conversation starters: icebreaker polls, more frequent but shorter',
     eventFrequency: {
-      flashMissionIntervalMin: [15, 20],
-      pollIntervalMin: [12, 18],
-      miniGameIntervalMin: [25, 35],
+      flashMissionIntervalMin: [25, 35],
+      pollIntervalMin: [8, 12],
+      miniGameIntervalMin: [40, 50],
     },
+    allowedEventTypes: ['poll', 'mini_game'],
     allowedMissionCategories: ['social', 'alliance'],
     allowedMiniGameTypes: ['caption', 'hot_take', 'assumption_arena'],
+    standingMissionCount: 5,
+    icebreakersMode: true,
   },
   {
     id: 'chill_dinner_party_C',
     label: 'C',
-    description: 'Standard: current settings (control group)',
+    description: 'Winner + zero standing missions: ONLY polls and occasional mini-games, absolute minimum chaos',
     eventFrequency: {
-      flashMissionIntervalMin: [15, 25],
-      pollIntervalMin: [20, 35],
-      miniGameIntervalMin: [30, 45],
+      flashMissionIntervalMin: [25, 35],
+      pollIntervalMin: [12, 18],
+      miniGameIntervalMin: [45, 60],
     },
+    allowedEventTypes: ['poll', 'mini_game'],
+    allowedMissionCategories: ['social', 'alliance'],
+    allowedMiniGameTypes: ['caption', 'hot_take', 'assumption_arena'],
+    standingMissionCount: 0,
   },
 ];
 
@@ -287,8 +317,8 @@ const chillDinnerParty: ScenarioDefinition = {
   id: 'chill_dinner_party',
   name: 'Chill Dinner Party',
   description:
-    'A laid-back dinner party with minimal disruption. Events are infrequent and low-key. ' +
-    'Tests whether the system can maintain engagement at a slow burn.',
+    'Round 2: Minimal/Social Only won R1. Testing icebreaker conversation-starter polls ' +
+    'and zero standing missions (absolute minimum chaos) against the winner baseline.',
   playerCount: 8,
   personaIds: ['pat', 'jade', 'river', 'diana', 'sam', 'marcus', 'tyler', 'alex'],
   gameType: 'dinner_party',
@@ -302,47 +332,42 @@ const chillDinnerParty: ScenarioDefinition = {
   variations: dinnerPartyVariations,
 };
 
-// ── Newbie Variations ────────────────────────────────────────────────────────
-// Sim data: 5.9/10 fun, Sam (newbie) at 5.4 fun is actually decent.
-// Marcus crashed to 1.1 energy. Test gentle onboarding with delayed start
-// and max event cap vs buddy system vs sink-or-swim.
+// ── Newbie Variations (Round 2) ──────────────────────────────────────────────
+// Round 1 winner: C (Sink or Swim). Newbies don't need coddling -- they want
+// the real experience. Refine with tutorial tooltips and buddy targeting.
 
 const newbieVariations: ScenarioVariation[] = [
   {
     id: 'newbie_overwhelm_A',
     label: 'A',
-    description: 'Gentle Onboarding: delayed first event, gradual ramp, auto-breaks, max 8 events',
-    eventFrequency: {
-      flashMissionIntervalMin: [8, 12],
-      pollIntervalMin: [10, 15],
-      miniGameIntervalMin: [15, 25],
-    },
-    firstEventDelayMin: 15,
-    intervalRampFactor: 2.0, // starts at 2x interval, shrinks to 1x over time
-    autoBreakEnabled: true,
-    autoBreakThreshold: 5,
-    maxEventsPerSession: 8,
-  },
-  {
-    id: 'newbie_overwhelm_B',
-    label: 'B',
-    description: 'Buddy System: moderate frequency, personal chaos tracking per player',
-    eventFrequency: {
-      flashMissionIntervalMin: [5, 10],
-      pollIntervalMin: [8, 12],
-      miniGameIntervalMin: [12, 20],
-    },
-    personalChaosLevel: true,
-  },
-  {
-    id: 'newbie_overwhelm_C',
-    label: 'C',
-    description: 'Sink or Swim: standard frequency, no special treatment (control group)',
+    description: 'R1 Winner baseline: standard frequency, no special treatment',
     eventFrequency: {
       flashMissionIntervalMin: [3, 7],
       pollIntervalMin: [4, 8],
       miniGameIntervalMin: [8, 15],
     },
+  },
+  {
+    id: 'newbie_overwhelm_B',
+    label: 'B',
+    description: 'Winner + tutorial tooltips: first event has extended explanation, then normal',
+    eventFrequency: {
+      flashMissionIntervalMin: [3, 7],
+      pollIntervalMin: [4, 8],
+      miniGameIntervalMin: [8, 15],
+    },
+    tutorialTooltips: true,
+  },
+  {
+    id: 'newbie_overwhelm_C',
+    label: 'C',
+    description: 'Winner + buddy targeting: events reference/target the newbie to include them',
+    eventFrequency: {
+      flashMissionIntervalMin: [3, 7],
+      pollIntervalMin: [4, 8],
+      miniGameIntervalMin: [8, 15],
+    },
+    buddyTargeting: true,
   },
 ];
 
@@ -350,8 +375,8 @@ const newbieOverwhelm: ScenarioDefinition = {
   id: 'newbie_overwhelm',
   name: 'Newbie Overwhelm Test',
   description:
-    'Stress test: Sam (first-timer) dropped into a high-frequency event scenario. ' +
-    'Tests whether the system detects engagement drop-off and adapts.',
+    'Round 2: Sink or Swim won R1 -- newbies want the real experience. Testing tutorial ' +
+    'tooltips on first event and buddy targeting (events reference the newbie) against baseline.',
   playerCount: 5,
   personaIds: ['sam', 'alex', 'jade', 'marcus', 'pat'],
   gameType: 'party_game',
@@ -365,16 +390,16 @@ const newbieOverwhelm: ScenarioDefinition = {
   variations: newbieVariations,
 };
 
-// ── AI Enhanced Variations ───────────────────────────────────────────────────
-// Sim data: 5.1/10 fun -- LOWER than static 5.3. AI prompts are too generic,
-// just swapping names into templates. Need deep personalization that references
-// specific player answers, recent events, and player relationships.
+// ── AI Enhanced Variations (Round 2) ─────────────────────────────────────────
+// Round 1 winner: A (Deep Personalization). AI referencing specific answers and
+// relationships was the key. Now test adding memory across sessions and
+// adaptive frequency based on group energy.
 
 const aiEnhancedVariations: ScenarioVariation[] = [
   {
     id: 'ai_enhanced_party_A',
     label: 'A',
-    description: 'Deep Personalization: AI references specific answers, events, and relationships',
+    description: 'R1 Winner baseline: deep personalization with vulnerability analysis',
     eventFrequency: {
       flashMissionIntervalMin: [4, 10],
       pollIntervalMin: [6, 12],
@@ -385,24 +410,26 @@ const aiEnhancedVariations: ScenarioVariation[] = [
   {
     id: 'ai_enhanced_party_B',
     label: 'B',
-    description: 'Light Personalization: AI uses player names in templates',
+    description: 'Winner + memory: AI references "last game night" and running jokes between players',
     eventFrequency: {
       flashMissionIntervalMin: [4, 10],
       pollIntervalMin: [6, 12],
       miniGameIntervalMin: [10, 20],
     },
-    aiPersonalizationDepth: 'light',
+    aiPersonalizationDepth: 'deep',
+    aiMemoryEnabled: true,
   },
   {
     id: 'ai_enhanced_party_C',
     label: 'C',
-    description: 'Static: no AI personalization (control group)',
+    description: 'Winner + adaptive: AI adjusts frequency based on group energy (more when high, backs off when low)',
     eventFrequency: {
       flashMissionIntervalMin: [4, 10],
       pollIntervalMin: [6, 12],
       miniGameIntervalMin: [10, 20],
     },
-    aiPersonalizationDepth: 'none',
+    aiPersonalizationDepth: 'deep',
+    aiAdaptiveFrequency: true,
   },
 ];
 
@@ -410,8 +437,8 @@ const aiEnhancedParty: ScenarioDefinition = {
   id: 'ai_enhanced_party',
   name: 'AI-Enhanced Party Game (vs Static)',
   description:
-    'Same as chaotic_party_game but with AI-personalized missions that reference player names, ' +
-    'recent events, and inside jokes. Compare results with chaotic_party_game to measure AI impact.',
+    'Round 2: Deep Personalization won R1. Testing cross-session memory (running jokes, ' +
+    '"last game night" references) and adaptive frequency (energy-aware pacing) against baseline.',
   playerCount: 6,
   personaIds: ['alex', 'jade', 'pat', 'tyler', 'sam', 'marcus'],
   gameType: 'party_game',

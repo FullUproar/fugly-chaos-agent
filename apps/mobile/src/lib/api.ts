@@ -192,4 +192,14 @@ export const api = {
       days_until_event: number | null;
       scheduled_at: string | null;
     }>('get-teasers', { event_id: eventId }),
+
+  // Auto-scheduler
+  autoSchedule: (req: { room_id: string }) =>
+    invoke<{
+      triggered: boolean;
+      event_type?: string;
+      event_id?: string;
+      next_check_seconds: number;
+      reason?: string;
+    }>('auto-schedule', { ...req }),
 };

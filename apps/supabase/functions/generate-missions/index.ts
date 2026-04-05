@@ -2,8 +2,7 @@ import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/supabase-client.ts';
 import { generateStandingMissions } from '../_shared/mission-pool.ts';
 import { generateWithSystem } from '../_shared/claude.ts';
-
-const STANDING_MISSION_COUNT = 8;
+import { getGameContextProfile } from '../_shared/game-context-profiles.ts';
 
 interface AIMission {
   title: string;
@@ -45,19 +44,31 @@ Deno.serve(async (req) => {
     // Verify room exists
     const { data: room } = await supabase
       .from('rooms')
-      .select('id, status, settings, started_at, created_at')
+      .select('id, status, settings, started_at, created_at, game_type')
       .eq('id', room_id)
       .single();
 
     if (!room) throw new Error('Room not found');
 
-    if (mode === 'ai') {
-      const missions = await generateAIMissions(room_id, room);
+    // Look up game context profile for this room's game type
+    const profile = getGameContextProfile(room.game_type ?? 'custom');
+    const missionCount = profile.standingMissionCount;
+    const allowedCategories = profile.allowedMissionCategories;
 
-      // Update room status to ACTIVE
+    if (mode === 'ai') {
+      const missions = await generateAIMissions(room_id, room, profile);
+
+      // Update room status to ACTIVE and store the game context profile key fields
       await supabase
         .from('rooms')
-        .update({ status: 'ACTIVE', started_at: new Date().toISOString() })
+        .update({
+          status: 'ACTIVE',
+          started_at: new Date().toISOString(),
+          settings: {
+            ...(room.settings as Record<string, unknown> ?? {}),
+            game_context_profile: profile.gameType,
+          },
+        })
         .eq('id', room_id);
 
       return new Response(JSON.stringify({ missions_created: missions.length, mode: 'ai' }), {
@@ -66,15 +77,22 @@ Deno.serve(async (req) => {
     }
 
     // Static mode (default, free tier)
-    await generateStandingMissions(room_id, STANDING_MISSION_COUNT);
+    await generateStandingMissions(room_id, missionCount, allowedCategories);
 
-    // Update room status to ACTIVE
+    // Update room status to ACTIVE and store the game context profile key fields
     await supabase
       .from('rooms')
-      .update({ status: 'ACTIVE', started_at: new Date().toISOString() })
+      .update({
+        status: 'ACTIVE',
+        started_at: new Date().toISOString(),
+        settings: {
+          ...(room.settings as Record<string, unknown> ?? {}),
+          game_context_profile: profile.gameType,
+        },
+      })
       .eq('id', room_id);
 
-    return new Response(JSON.stringify({ missions_created: STANDING_MISSION_COUNT, mode: 'static' }), {
+    return new Response(JSON.stringify({ missions_created: missionCount, mode: 'static' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
@@ -87,7 +105,8 @@ Deno.serve(async (req) => {
 
 async function generateAIMissions(
   roomId: string,
-  room: { id: string; settings: Record<string, unknown>; started_at: string | null; created_at: string },
+  room: { id: string; settings: Record<string, unknown>; started_at: string | null; created_at: string; game_type: string },
+  profile: ReturnType<typeof getGameContextProfile>,
 ): Promise<AIMission[]> {
   const supabase = getAdminClient();
 
@@ -162,7 +181,16 @@ async function generateAIMissions(
     return acc;
   }, {});
 
-  const contextPrompt = `Generate ${STANDING_MISSION_COUNT} standing missions and 4 flash missions for this game night.
+  const categoryNote = profile.allowedMissionCategories
+    ? `IMPORTANT: Only generate standing missions in these categories: ${profile.allowedMissionCategories.join(', ')}.`
+    : 'Use a mix of all categories.';
+  const flashNote = profile.flashEnabled
+    ? `Also generate 4 flash missions with different flash_types.`
+    : `Do NOT generate any flash missions — this game type (${profile.gameType}) uses polls-only mode.`;
+
+  const contextPrompt = `Generate ${profile.standingMissionCount} standing missions for this game night.
+${flashNote}
+${categoryNote}
 
 PLAYERS (${playerList.length}):
 ${playerList.map(p => {

@@ -35,6 +35,14 @@ interface SessionState {
   scores: PlayerScore[];
   recentMessages: Message[];
   activeMiniGame: any | null;
+  gameContext: {
+    gameType: string;
+    flashEnabled: boolean;
+    autoBreakEnabled: boolean;
+    autoBreakAfterMinutes: number;
+    provocativePolls: boolean;
+    flashPointMultiplier: number;
+  } | null;
 
   // Local UI state
   flashDismissed: boolean;
@@ -71,6 +79,7 @@ const initialState = {
   scores: [],
   recentMessages: [],
   activeMiniGame: null,
+  gameContext: null,
   flashDismissed: false,
   pollDismissed: false,
   miniGameDismissed: false,
@@ -110,6 +119,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       scores: state.scores,
       recentMessages: state.recent_messages ?? [],
       activeMiniGame: state.active_mini_game ?? null,
+      gameContext: state.game_context ?? prev.gameContext,
       // Reset dismissed state when a new flash/poll/mini-game arrives
       flashDismissed: newFlashId !== prev._lastFlashId ? false : prev.flashDismissed,
       pollDismissed: newPollId !== prev._lastPollId ? false : prev.pollDismissed,

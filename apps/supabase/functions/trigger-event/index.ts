@@ -3,6 +3,8 @@ import { getAdminClient } from '../_shared/supabase-client.ts';
 import { generateFlashMission, generatePoll } from '../_shared/mission-pool.ts';
 import { sendPush } from '../_shared/push.ts';
 import { generateWithSystem } from '../_shared/claude.ts';
+import { getGameContextProfile } from '../_shared/game-context-profiles.ts';
+import type { GameContextProfile } from '../_shared/game-context-profiles.ts';
 
 const GAME_TYPE_LABELS: Record<string, string> = {
   drawing: 'DRAW IT',
@@ -41,7 +43,7 @@ Deno.serve(async (req) => {
     // Verify room exists and is ACTIVE
     const { data: room } = await supabase
       .from('rooms')
-      .select('id, status, started_at')
+      .select('id, status, started_at, game_type')
       .eq('id', room_id)
       .single();
 
@@ -51,6 +53,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Get game context profile
+    const profile: GameContextProfile = getGameContextProfile(room.game_type ?? 'custom');
 
     // Get players for this room
     const { data: playersData } = await supabase
@@ -66,6 +71,31 @@ Deno.serve(async (req) => {
     }));
 
     if (event_type === 'flash_mission') {
+      // If flash is disabled for this game type (e.g. dinner_party), reject
+      if (!profile.flashEnabled) {
+        return new Response(JSON.stringify({ error: 'Flash missions are disabled for this game type' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // If suppressDuringHighTension (board_game), skip if game has been active > 75% of estimated duration
+      if (profile.suppressDuringHighTension && room.started_at) {
+        const minutesElapsed = (Date.now() - new Date(room.started_at).getTime()) / 60_000;
+        // Approximate: suppress after 75% of autoBreakAfterMinutes (or 60 min default)
+        const tensionThreshold = (profile.autoBreakAfterMinutes || 60) * 0.75;
+        if (minutesElapsed > tensionThreshold) {
+          return new Response(JSON.stringify({
+            event_id: null,
+            type: 'flash_mission',
+            suppressed: true,
+            reason: 'High tension period — flash missions suppressed',
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       // Expire any active flash missions
       await supabase
         .from('missions')
@@ -83,6 +113,14 @@ Deno.serve(async (req) => {
           compress_timers ?? true,
           flash_type,
         );
+
+        // Apply flash point multiplier from game context (e.g. bar_night = 1.5x)
+        if (profile.flashPointMultiplier !== 1.0) {
+          await supabase
+            .from('missions')
+            .update({ points: Math.round(profile.flashPointMultiplier * 15) }) // AI flash defaults ~15pts
+            .eq('id', mission.id);
+        }
 
         sendPush({
           room_id,
@@ -110,6 +148,15 @@ Deno.serve(async (req) => {
         flash_type,
       );
 
+      // Apply flash point multiplier from game context (e.g. bar_night = 1.5x)
+      if (profile.flashPointMultiplier !== 1.0) {
+        const boostedPoints = Math.round(mission.points * profile.flashPointMultiplier);
+        await supabase
+          .from('missions')
+          .update({ points: boostedPoints })
+          .eq('id', mission.id);
+      }
+
       sendPush({
         room_id,
         title: '\u{26A1} Flash Mission!',
@@ -135,7 +182,7 @@ Deno.serve(async (req) => {
         .eq('room_id', room_id)
         .eq('status', 'ACTIVE');
 
-      const poll = await generatePoll(room_id, players, compress_timers ?? true);
+      const poll = await generatePoll(room_id, players, compress_timers ?? true, profile.provocativePolls);
 
       sendPush({
         room_id,
@@ -155,7 +202,15 @@ Deno.serve(async (req) => {
     }
 
     if (event_type === 'mini_game') {
-      const gameType = mini_game_type ?? 'caption';
+      let gameType = mini_game_type ?? 'caption';
+
+      // Filter by allowed mini-game types for this game context
+      if (profile.allowedMiniGameTypes && !profile.allowedMiniGameTypes.includes(gameType)) {
+        // Fall back to a random allowed type
+        gameType = profile.allowedMiniGameTypes[
+          Math.floor(Math.random() * profile.allowedMiniGameTypes.length)
+        ];
+      }
       const prompts: Record<string, string[]> = {
         drawing: ['Draw the current room vibe', 'Draw the player in the lead', 'Draw chaos'],
         caption: ['Caption this moment', 'Write a tabloid headline about this game', 'What is the leader thinking right now?'],
