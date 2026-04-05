@@ -1,7 +1,7 @@
 // Inline pool data to avoid ESM resolution issues with the shared package
 // These match the pools in packages/shared/src/constants/
 
-import type { ScenarioDefinition } from '../config/scenarios';
+import type { ScenarioDefinition, ScenarioVariation } from '../config/scenarios';
 import type { GameState } from './game-state';
 import type { SessionState, SimEvent } from './session-state';
 
@@ -65,6 +65,25 @@ const POLL_QUESTION_POOL: string[] = [
   "Who's the funniest person here?",
 ];
 
+/** Provocative poll pool for bar nights and high-chaos scenarios. */
+const PROVOCATIVE_POLL_POOL: string[] = [
+  "Who's the worst driver here?",
+  "Who's most likely to start a bar fight?",
+  "Who has the worst taste in music?",
+  "Who would be the worst roommate?",
+  "Who's told the biggest lie tonight?",
+  "Who's most likely to get kicked out of here?",
+  "Who would you LEAST want to be stuck on a desert island with?",
+  "Who's the biggest lightweight?",
+  "Who's most likely to drunk-text their ex tonight?",
+  "Who has the worst fashion sense at this table?",
+  "Who's most likely to get lost on the way home?",
+  "Who would survive longest in prison?",
+  "Who's secretly the biggest nerd here?",
+  "Who would be the worst at karaoke?",
+  "Who's most likely to ghost the group chat tomorrow?",
+];
+
 const ALL_MINI_GAME_PROMPTS: MiniGameTemplate[] = [
   // Drawing
   { type: 'drawing', prompt: "Draw {PLAYER}'s spirit animal", points: 25, submissionTimeSec: 60, votingTimeSec: 30, playerNameSlot: true },
@@ -112,6 +131,21 @@ const ALL_MINI_GAME_PROMPTS: MiniGameTemplate[] = [
   { type: 'lie_detector', prompt: "Tell us your most irrational fear", points: 15, submissionTimeSec: 25, votingTimeSec: 20 },
   { type: 'lie_detector', prompt: "Tell us about the dumbest thing you've ever spent money on", points: 15, submissionTimeSec: 25, votingTimeSec: 20 },
   { type: 'lie_detector', prompt: "Tell us about a time you completely failed at something easy", points: 20, submissionTimeSec: 30, votingTimeSec: 20 },
+  // Worst Advice (bar-optimized)
+  { type: 'worst_advice' as MiniGameType, prompt: "Give the worst possible dating advice", points: 15, submissionTimeSec: 20, votingTimeSec: 20 },
+  { type: 'worst_advice' as MiniGameType, prompt: "Give the worst advice for a job interview", points: 15, submissionTimeSec: 20, votingTimeSec: 20 },
+  { type: 'worst_advice' as MiniGameType, prompt: "Give the worst advice for meeting your partner's parents", points: 15, submissionTimeSec: 20, votingTimeSec: 20 },
+  { type: 'worst_advice' as MiniGameType, prompt: "Give the worst financial advice possible", points: 15, submissionTimeSec: 20, votingTimeSec: 20 },
+  // Speed Superlative (bar-optimized)
+  { type: 'speed_superlative' as MiniGameType, prompt: "Most likely to end up on a reality show", points: 10, submissionTimeSec: 10, votingTimeSec: 15 },
+  { type: 'speed_superlative' as MiniGameType, prompt: "Most likely to survive a haunted house", points: 10, submissionTimeSec: 10, votingTimeSec: 15 },
+  { type: 'speed_superlative' as MiniGameType, prompt: "Most likely to accidentally go viral", points: 10, submissionTimeSec: 10, votingTimeSec: 15 },
+  { type: 'speed_superlative' as MiniGameType, prompt: "Most likely to start a conspiracy theory", points: 10, submissionTimeSec: 10, votingTimeSec: 15 },
+  // Assumption Arena (dinner-party optimized)
+  { type: 'assumption_arena' as MiniGameType, prompt: "What was {PLAYER}'s most embarrassing phase growing up?", points: 15, submissionTimeSec: 25, votingTimeSec: 20, playerNameSlot: true },
+  { type: 'assumption_arena' as MiniGameType, prompt: "What's {PLAYER}'s guilty pleasure TV show?", points: 15, submissionTimeSec: 25, votingTimeSec: 20, playerNameSlot: true },
+  { type: 'assumption_arena' as MiniGameType, prompt: "What would {PLAYER}'s last meal be?", points: 15, submissionTimeSec: 25, votingTimeSec: 20, playerNameSlot: true },
+  { type: 'assumption_arena' as MiniGameType, prompt: "What song is {PLAYER}'s secret karaoke go-to?", points: 15, submissionTimeSec: 25, votingTimeSec: 20, playerNameSlot: true },
 ];
 
 export type ScheduledEventType = 'flash_mission' | 'poll' | 'mini_game';
@@ -125,13 +159,17 @@ export interface ScheduledEvent {
  * Decides when and what events to fire during a simulation.
  *
  * Respects cooldowns, active blocking activities, phase-based weighting,
- * disruption tolerance, dead-time preference, and signal overrides.
+ * disruption tolerance, dead-time preference, signal overrides, and
+ * variation-level overrides (tension suppression, event type filtering,
+ * mini-game type filtering, standing mission count, etc).
  */
 export class EventScheduler {
   private lastFlashTick: number = -Infinity;
   private lastPollTick: number = -Infinity;
   private lastMiniGameTick: number = -Infinity;
   private readonly config: ScenarioDefinition['eventFrequency'];
+  private readonly variation: ScenarioVariation | null;
+  private totalEventsFired: number = 0;
 
   /**
    * Per-event-type cooldowns are rolled ONCE when an event fires,
@@ -146,42 +184,58 @@ export class EventScheduler {
   private usedPollIndices: Set<number> = new Set();
   private usedMiniGameIndices: Set<number> = new Set();
 
-  constructor(config: ScenarioDefinition['eventFrequency']) {
-    this.config = config;
+  constructor(
+    config: ScenarioDefinition['eventFrequency'],
+    variation?: ScenarioVariation | null,
+  ) {
+    // Use variation frequency overrides if present
+    this.config = variation?.eventFrequency ?? config;
+    this.variation = variation ?? null;
 
-    // First events should fire early (within 5-8 minutes).
-    // Stagger them so they don't all fire on the same tick.
-    this.nextFlashEligible = 5 + Math.floor(Math.random() * 3);    // 5-7
-    this.nextPollEligible = 6 + Math.floor(Math.random() * 4);     // 6-9
-    this.nextMiniGameEligible = 8 + Math.floor(Math.random() * 5); // 8-12
+    const firstEventDelay = variation?.firstEventDelayMin ?? 0;
+    const baseFlash = 5 + Math.floor(Math.random() * 3);    // 5-7
+    const basePoll = 6 + Math.floor(Math.random() * 4);     // 6-9
+    const baseMiniGame = 8 + Math.floor(Math.random() * 5); // 8-12
+
+    // Apply first event delay and interval ramp factor
+    const rampFactor = variation?.intervalRampFactor ?? 1.0;
+    this.nextFlashEligible = Math.max(baseFlash, firstEventDelay) * rampFactor;
+    this.nextPollEligible = Math.max(basePoll, firstEventDelay + 1) * rampFactor;
+    this.nextMiniGameEligible = Math.max(baseMiniGame, firstEventDelay + 3) * rampFactor;
   }
 
   /**
    * Evaluate whether an event should fire at this tick.
    * Returns null if no event should fire, or a ScheduledEvent with full data.
-   *
-   * Core fix: each event type has a pre-rolled "next eligible" tick.
-   * Once that tick arrives, the event is a candidate. After firing,
-   * the next eligible tick is rolled from the config interval.
    */
   shouldFireEvent(
     tick: number,
     gameState: GameState,
     sessionState: SessionState,
   ): ScheduledEvent | null {
+    // 0. Check max events per session cap
+    if (this.variation?.maxEventsPerSession && this.totalEventsFired >= this.variation.maxEventsPerSession) {
+      return null;
+    }
+
     // 1. Don't fire if there's a blocking activity (active claim or mini-game).
     if (sessionState.hasBlockingActivity) return null;
 
     // 2. Don't fire if there's already an active flash mission.
     if (sessionState.activeFlash) return null;
 
-    // 3. Disruption tolerance only reduces frequency at very low levels (< 3),
+    // 3. Suppress during high tension if variation says so
+    if (this.variation?.suppressDuringHighTension && gameState.tensionLevel > 7) {
+      return null;
+    }
+
+    // 4. Disruption tolerance only reduces frequency at very low levels (< 3),
     //    not blocks entirely. 50% chance to skip this tick when tolerance < 3.
     if (gameState.disruptionTolerance < 3) {
       if (Math.random() < 0.5) return null;
     }
 
-    // 4. Check if a shake_it_up signal was sent recently -- halve remaining cooldowns.
+    // 5. Check if a shake_it_up signal was sent recently -- halve remaining cooldowns.
     const shakeItUp = sessionState.hasRecentSignal('shake_it_up', tick, 3);
     if (shakeItUp) {
       // Bring eligible times closer to now
@@ -191,46 +245,57 @@ export class EventScheduler {
       this.nextMiniGameEligible = pullForward(this.nextMiniGameEligible);
     }
 
-    // 5. Build candidate list of event types that have reached their eligible tick.
-    //    Target mix: ~50% flash, ~30% poll, ~20% mini-game
-    const candidates: Array<{ type: ScheduledEventType; weight: number }> = [];
+    // 5b. Calculate interval ramp factor (shrinks from rampFactor to 1.0 over session)
+    const rampFactor = this.calcRampFactor(tick, sessionState);
 
-    if (tick >= this.nextFlashEligible) {
+    // 6. Build candidate list of event types that have reached their eligible tick.
+    //    Default mix: ~50% flash, ~30% poll, ~20% mini-game
+    //    Variation miniGameWeight adjusts mini-game relative to flash/poll.
+    const candidates: Array<{ type: ScheduledEventType; weight: number }> = [];
+    const allowedTypes = this.variation?.allowedEventTypes;
+    const miniGameWeightMult = this.variation?.miniGameWeight ?? 1.0;
+
+    if (tick >= this.nextFlashEligible && (!allowedTypes || allowedTypes.includes('flash_mission'))) {
       const phaseWeight = this.phaseWeight(gameState.currentPhase.name, 'flash');
       candidates.push({ type: 'flash_mission', weight: 5.0 * phaseWeight });
     }
 
-    if (tick >= this.nextPollEligible) {
+    if (tick >= this.nextPollEligible && (!allowedTypes || allowedTypes.includes('poll'))) {
       const phaseWeight = this.phaseWeight(gameState.currentPhase.name, 'poll');
       candidates.push({ type: 'poll', weight: 3.0 * phaseWeight });
     }
 
-    if (tick >= this.nextMiniGameEligible) {
+    if (tick >= this.nextMiniGameEligible && (!allowedTypes || allowedTypes.includes('mini_game'))) {
       const phaseWeight = this.phaseWeight(gameState.currentPhase.name, 'mini_game');
-      candidates.push({ type: 'mini_game', weight: 2.0 * phaseWeight });
+      candidates.push({ type: 'mini_game', weight: 2.0 * phaseWeight * miniGameWeightMult });
     }
 
     if (candidates.length === 0) return null;
 
-    // 6. Dead time is a BONUS -- boost weights slightly, but events can
+    // 7. Dead time is a BONUS -- boost weights slightly, but events can
     //    fire during active play too.
     if (gameState.isDeadTime) {
       for (const c of candidates) c.weight *= 1.3;
     }
 
-    // 7. Weighted random pick.
+    // 8. Weighted random pick.
     const chosen = this.weightedPick(candidates);
     if (!chosen) return null;
 
     const playerNames = sessionState.players.map((p) => p.name);
 
-    // 8. Build the event.
+    // 9. Build the event.
     switch (chosen.type) {
       case 'flash_mission': {
         const mission = this.pickFlashMission(playerNames);
         if (!mission) return null;
+        // Apply flash point multiplier from variation
+        if (this.variation?.flashPointMultiplier) {
+          mission.points = Math.round(mission.points * this.variation.flashPointMultiplier);
+        }
         this.lastFlashTick = tick;
-        this.nextFlashEligible = tick + this.randomInRange(this.config.flashMissionIntervalMin);
+        this.nextFlashEligible = tick + this.randomInRange(this.config.flashMissionIntervalMin) * rampFactor;
+        this.totalEventsFired++;
         return {
           type: 'flash_mission',
           data: {
@@ -246,7 +311,8 @@ export class EventScheduler {
         const poll = this.pickPoll(playerNames);
         if (!poll) return null;
         this.lastPollTick = tick;
-        this.nextPollEligible = tick + this.randomInRange(this.config.pollIntervalMin);
+        this.nextPollEligible = tick + this.randomInRange(this.config.pollIntervalMin) * rampFactor;
+        this.totalEventsFired++;
         return {
           type: 'poll',
           data: {
@@ -262,7 +328,8 @@ export class EventScheduler {
         const miniGame = this.pickMiniGame(playerNames);
         if (!miniGame) return null;
         this.lastMiniGameTick = tick;
-        this.nextMiniGameEligible = tick + this.randomInRange(this.config.miniGameIntervalMin);
+        this.nextMiniGameEligible = tick + this.randomInRange(this.config.miniGameIntervalMin) * rampFactor;
+        this.totalEventsFired++;
         return {
           type: 'mini_game',
           data: {
@@ -279,9 +346,26 @@ export class EventScheduler {
 
   // ---- Private helpers ----
 
+  /** Calculate the current ramp factor (shrinks from initial rampFactor to 1.0 over session). */
+  private calcRampFactor(tick: number, sessionState: SessionState): number {
+    if (!this.variation?.intervalRampFactor || this.variation.intervalRampFactor <= 1.0) return 1.0;
+    // Linear ramp: starts at intervalRampFactor, reaches 1.0 at ~60% through the session
+    // We estimate total minutes from the event log's existence (rough heuristic)
+    const progress = Math.min(1.0, tick / 60); // ramp completes by minute 60
+    const factor = this.variation.intervalRampFactor - (this.variation.intervalRampFactor - 1.0) * progress;
+    return Math.max(1.0, factor);
+  }
+
   /** Pick a flash mission from the shared pool, substituting [PLAYER] if needed. */
   private pickFlashMission(playerNames: string[]): FlashMissionTemplate | null {
-    const pool = FLASH_MISSION_POOL;
+    let pool = FLASH_MISSION_POOL;
+
+    // Filter by allowed mission categories if set
+    if (this.variation?.allowedMissionCategories) {
+      const allowed = new Set(this.variation.allowedMissionCategories);
+      pool = pool.filter((m) => allowed.has(m.category));
+    }
+
     if (pool.length === 0) return null;
 
     const idx = this.pickUnusedIndex(pool.length, this.usedFlashIndices);
@@ -297,7 +381,7 @@ export class EventScheduler {
 
   /** Pick a poll question and build options from player names. */
   private pickPoll(playerNames: string[]): { question: string; options: string[] } | null {
-    const pool = POLL_QUESTION_POOL;
+    const pool = this.variation?.provocativePolls ? PROVOCATIVE_POLL_POOL : POLL_QUESTION_POOL;
     if (pool.length === 0) return null;
 
     const idx = this.pickUnusedIndex(pool.length, this.usedPollIndices);
@@ -309,7 +393,14 @@ export class EventScheduler {
 
   /** Pick a mini-game prompt, substituting {PLAYER} if needed. */
   private pickMiniGame(playerNames: string[]): MiniGameTemplate | null {
-    const pool = ALL_MINI_GAME_PROMPTS;
+    let pool = ALL_MINI_GAME_PROMPTS;
+
+    // Filter by allowed mini-game types if set
+    if (this.variation?.allowedMiniGameTypes) {
+      const allowed = new Set(this.variation.allowedMiniGameTypes);
+      pool = pool.filter((m) => allowed.has(m.type));
+    }
+
     if (pool.length === 0) return null;
 
     const idx = this.pickUnusedIndex(pool.length, this.usedMiniGameIndices);

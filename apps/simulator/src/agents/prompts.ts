@@ -44,6 +44,8 @@ export interface AgentContext {
   }[];
   /** AI-personalized mode flag -- missions reference players and recent events. */
   aiMode?: boolean;
+  /** Depth of AI personalization: 'deep', 'light', or 'none'. */
+  aiPersonalizationDepth?: 'deep' | 'light' | 'none';
 }
 
 export interface FinalAssessmentContext {
@@ -274,13 +276,42 @@ export function buildUserPrompt(context: AgentContext): string {
 
   // ── AI mode block ──
   let aiModeBlock = '';
-  if (context.aiMode) {
+  const aiDepth = context.aiPersonalizationDepth ?? (context.aiMode ? 'deep' : 'none');
+
+  if (aiDepth === 'deep') {
+    // Build dynamic AI context from recent history and other player states
+    const recentEvents = recentHistory.slice(-3);
+    const playerMoods = otherPlayers.map((p) => `${p.name} (${p.lastVibe})`).join(', ');
+    const recentEventNames = recentEvents.map((e) => e.title).join(', ');
+
     aiModeBlock = [
-      'NOTE: These missions were AI-generated specifically for your group based on your setup answers',
-      'and what has happened tonight. They reference your names, your inside jokes, and recent events.',
-      'React to how PERSONALIZED this feels compared to generic missions.',
+      '>>> CHAOS AGENT AI -- DEEP PERSONALIZATION ACTIVE <<<',
+      '',
+      'NOTICE: Tonight\'s missions were custom-built by analyzing your group\'s dynamics.',
+      'The AI knows your weaknesses. It has been watching.',
+      '',
+      `GROUP DYNAMICS DETECTED:`,
+      `- Player moods right now: ${playerMoods}`,
+      recentEventNames ? `- Recent chaos: ${recentEventNames}` : '- The AI is still gathering intel on your group.',
+      `- Your personal vulnerability: The AI noticed you ${persona.chaosTolerance > 6 ? 'thrive on chaos but get bored without it' : persona.chaosTolerance > 3 ? 'pretend to tolerate chaos but secretly track every disruption' : 'hate being interrupted and the AI knows exactly when to strike'}.`,
+      '',
+      'The event descriptions reference SPECIFIC things about your group:',
+      '- Player names, recent events, and relationship dynamics',
+      '- Things players said earlier tonight (the AI was listening)',
+      '- Patterns the AI detected in how your group interacts',
+      '',
+      'React to how PERSONALLY TARGETED this feels. Does it feel like the AI is reading your mind?',
+      'Does it feel uncanny and invasive, or thrilling and impressive?',
+      'This should feel DRAMATICALLY different from generic template missions.',
+    ].join('\n');
+  } else if (aiDepth === 'light') {
+    aiModeBlock = [
+      'NOTE: These missions use player names from your group setup.',
+      'The missions mention specific people but use standard templates.',
+      'React to whether the name-dropping adds anything meaningful.',
     ].join('\n');
   }
+  // aiDepth === 'none' -> no block added (control group)
 
   // ── Final assembly ──
   const blocks = [

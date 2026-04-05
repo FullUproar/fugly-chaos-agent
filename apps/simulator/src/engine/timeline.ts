@@ -1,6 +1,6 @@
 import { getGameProfile } from '../config/game-profiles.js';
 import { getPersonas } from '../config/personas.js';
-import type { ScenarioDefinition } from '../config/scenarios.js';
+import type { ScenarioDefinition, ScenarioVariation } from '../config/scenarios.js';
 import { ClaudeBridge } from '../agents/claude-bridge.js';
 import type { AgentResponse, FinalAssessment } from '../agents/claude-bridge.js';
 import { AgentPool } from '../agents/agent-pool.js';
@@ -126,6 +126,7 @@ export interface SimulationConfig {
   model: string;
   dryRun: boolean;
   verbose: boolean;
+  variation?: ScenarioVariation | null;
 }
 
 export class Timeline {
@@ -139,8 +140,13 @@ export class Timeline {
   private events: SimEvent[] = [];
   private eventIdCounter: number = 0;
 
+  /** Per-agent chaos tolerance tracking for personalChaosLevel variation. */
+  private agentChaosCounters: Map<string, number> = new Map();
+  private readonly personalChaosEnabled: boolean;
+
   constructor(config: SimulationConfig) {
     this.config = config;
+    const variation = config.variation ?? null;
 
     const personas = getPersonas(config.scenario.personaIds);
     const profile = getGameProfile(config.scenario.gameType);
@@ -151,13 +157,31 @@ export class Timeline {
     });
 
     this.pool = new AgentPool(personas);
+    this.personalChaosEnabled = variation?.personalChaosLevel ?? false;
+
+    // Select standing missions -- filter by variation if needed, respect count override
+    let standingPool = [...STANDING_MISSION_POOL];
+    if (variation?.allowedMissionCategories) {
+      const allowed = new Set(variation.allowedMissionCategories);
+      standingPool = standingPool.filter((m) => allowed.has(m.category));
+    }
+    const standingCount = variation?.standingMissionCount ?? 8;
+    // Shuffle and take the configured count
+    const shuffled = standingPool.sort(() => Math.random() - 0.5);
+    const selectedMissions = shuffled.slice(0, standingCount);
+
     this.gameState = new GameState(profile);
     this.sessionState = new SessionState(
       personas.map((p) => ({ id: p.id, name: p.name })),
-      STANDING_MISSION_POOL.slice(0, 8), // Pick 8 standing missions per session
+      selectedMissions,
     );
-    this.scheduler = new EventScheduler(config.scenario.eventFrequency);
+    this.scheduler = new EventScheduler(config.scenario.eventFrequency, variation);
     this.collector = new MetricsCollector();
+
+    // Initialize per-agent chaos counters
+    for (const p of personas) {
+      this.agentChaosCounters.set(p.id, 0);
+    }
   }
 
   async run(): Promise<{
@@ -167,8 +191,10 @@ export class Timeline {
     apiStats: { totalCalls: number; totalTokens: number };
   }> {
     const { scenario } = this.config;
+    const variation = this.config.variation;
+    const variationLabel = variation ? ` [Variation ${variation.label}: ${variation.description}]` : '';
 
-    console.log(`\n--- Starting simulation: ${scenario.name}`);
+    console.log(`\n--- Starting simulation: ${scenario.name}${variationLabel}`);
     console.log(`    ${scenario.playerCount} players, ${scenario.gameType.replace(/_/g, ' ')}, ${scenario.totalMinutes} minutes`);
     console.log(`    Mode: ${this.config.dryRun ? 'DRY RUN' : 'LIVE'}\n`);
 
@@ -182,6 +208,33 @@ export class Timeline {
       for (const agent of this.pool.getAllAgents()) {
         agent.energy = Math.max(1, agent.energy - 0.02);
         agent.recordEnergy();
+      }
+
+      // 2b. Auto-break check: if variation has autoBreakEnabled, trigger break when average energy drops below threshold
+      if (variation?.autoBreakEnabled) {
+        const threshold = variation.autoBreakThreshold ?? 4;
+        const allAgents = this.pool.getAllAgents();
+        const avgEnergy = allAgents.reduce((sum, a) => sum + a.energy, 0) / allAgents.length;
+        if (avgEnergy < threshold) {
+          // Automatic break -- boost everyone
+          for (const a of allAgents) {
+            a.energy = Math.min(10, a.energy + 2.5);
+          }
+          const hostEvent = this.createEvent(tick, 'host_action' as SimEvent['type'], {
+            title: 'Auto-Break: Energy Low',
+            description: `Automatic break triggered (avg energy ${avgEnergy.toFixed(1)} < ${threshold}). Everyone recovers.`,
+          });
+          this.events.push(hostEvent);
+          this.sessionState.addEvent({
+            tick,
+            type: 'host_action',
+            title: hostEvent.title,
+            reactions: new Map(),
+          });
+          if (this.config.verbose) {
+            console.log(`  [${tick}min] AUTO_BREAK: avg energy ${avgEnergy.toFixed(1)} < ${threshold}`);
+          }
+        }
       }
 
       // 3. Check for spontaneous standing mission claims
@@ -242,7 +295,8 @@ export class Timeline {
 
         if (this.config.verbose) {
           const outcome = voteResult.passed ? 'PASSED' : 'FAILED';
-          console.log(`  [${tick}min] standing_claim: "${standingClaim.missionTitle}" by ${claimAgent.persona.name} -> ${outcome} (${mechanic.name})`);
+          const vLabel = variation ? ` [${variation.label}]` : '';
+          console.log(`  [${tick}min]${vLabel} standing_claim: "${standingClaim.missionTitle}" by ${claimAgent.persona.name} -> ${outcome} (${mechanic.name})`);
         }
       }
 
@@ -292,7 +346,8 @@ export class Timeline {
         lastEventTick = tick;
 
         if (this.config.verbose) {
-          console.log(`  [${tick}min] ${eventType}: "${event.title}" -> ${this.summarizeReactions(event)}`);
+          const vLabel = variation ? ` [${variation.label}]` : '';
+          console.log(`  [${tick}min]${vLabel} ${eventType}: "${event.title}" -> ${this.summarizeReactions(event)}`);
         }
       }
 
@@ -355,7 +410,8 @@ export class Timeline {
       totalTokens: rawStats.totalInputTokens + rawStats.totalOutputTokens,
     };
 
-    console.log(`\n    Simulation complete. ${this.events.length} events, ${apiStats.totalCalls} API calls.`);
+    const vLabel = variation ? ` [Variation ${variation.label}]` : '';
+    console.log(`\n    Simulation complete${vLabel}. ${this.events.length} events, ${apiStats.totalCalls} API calls.`);
 
     return { events: this.events, metrics, assessments, apiStats };
   }
@@ -464,6 +520,7 @@ export class Timeline {
   /**
    * Collect reactions from all agents for a given event.
    * Distracted agents get a default missed reaction.
+   * If personalChaosLevel is enabled, skip events for agents at their tolerance limit.
    */
   private async collectReactions(
     event: SimEvent,
@@ -491,6 +548,37 @@ export class Timeline {
       : null;
 
     for (const agent of allAgents) {
+      // Personal chaos level check: skip events for agents who have hit their tolerance
+      if (this.personalChaosEnabled) {
+        const chaosCount = this.agentChaosCounters.get(agent.id) ?? 0;
+        const tolerance = agent.persona.chaosTolerance ?? 5;
+        // If agent has experienced more events than their tolerance * 2, they auto-check-out
+        if (chaosCount > tolerance * 2) {
+          event.reactions.set(agent.id, {
+            decision: 'ignore',
+            engagement: 0,
+            disruption_perception: 0,
+            fun_factor: 2,
+            annoyance: 3,
+            humor_landed: 0,
+            energy_delta: 0,
+            attention_cost: 0,
+            dialogue: '',
+            internal_thought: 'I\'ve had enough chaos for tonight, sitting this one out.',
+            would_send_signal: 'slow_your_roll',
+            vote_if_applicable: null,
+            claim_if_applicable: false,
+            submission_if_applicable: null,
+            wants_more_chaos: false,
+            wants_less_chaos: true,
+            notification_feedback: 'too_loud',
+            overall_vibe: 'checked_out',
+          } as AgentResponse);
+          continue;
+        }
+        this.agentChaosCounters.set(agent.id, chaosCount + 1);
+      }
+
       if (agent.isDistracted(tick)) {
         // Agent missed the event
         event.reactions.set(agent.id, {
@@ -531,10 +619,20 @@ export class Timeline {
         minutesSinceLastEvent,
       );
 
+      // Determine AI mode and personalization depth
+      const variation = this.config.variation;
+      let aiMode = this.config.scenario.aiMode ?? false;
+      let aiPersonalizationDepth: 'deep' | 'light' | 'none' = 'deep';
+      if (variation?.aiPersonalizationDepth) {
+        aiPersonalizationDepth = variation.aiPersonalizationDepth;
+        aiMode = aiPersonalizationDepth !== 'none';
+      }
+
       // Merge in event-specific fields
       const context: AgentContext = {
         ...contextBase,
-        aiMode: this.config.scenario.aiMode ?? false,
+        aiMode,
+        aiPersonalizationDepth,
         event: {
           type: event.type,
           title: event.title,
