@@ -1,0 +1,22 @@
+{
+  "name": "@chaos-agent/simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sim": "tsx src/index.ts",
+    "sim:all": "tsx src/index.ts --all",
+    "sim:dry": "tsx src/index.ts --dry-run --all",
+    "sim:quick": "tsx src/index.ts --dry-run --scenario chill-board-game"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@chaos-agent/shared": "*",
+    "commander": "^13.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}

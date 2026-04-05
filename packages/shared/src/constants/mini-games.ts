@@ -1,4 +1,4 @@
-import type { MiniGameType } from '../types/database';
+import type { MiniGameType } from './mini-game-variations';
 
 export interface MiniGameTemplate {
   type: MiniGameType;

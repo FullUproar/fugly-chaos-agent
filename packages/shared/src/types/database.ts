@@ -1,4 +1,5 @@
 // Types matching Supabase table rows
+import type { MiniGameType } from '../constants/mini-game-variations';
 
 export type RoomStatus = 'INVITED' | 'LOBBY' | 'SETUP' | 'ACTIVE' | 'INTERMISSION' | 'ENDED';
 export type MissionStatus = 'HIDDEN' | 'REVEALED' | 'CLAIMED' | 'VERIFIED' | 'FAILED' | 'EXPIRED';
@@ -191,8 +192,7 @@ export interface PollVote {
   voted_at: string;
 }
 
-// Mini-games
-export type MiniGameType = 'drawing' | 'caption' | 'hot_take' | 'lie_detector';
+// Mini-games (MiniGameType is defined in constants/mini-game-variations.ts with all 10 types)
 export type MiniGameStatus = 'PROMPTING' | 'SUBMITTING' | 'VOTING' | 'RESULTS' | 'CLOSED';
 
 export interface MiniGame {
