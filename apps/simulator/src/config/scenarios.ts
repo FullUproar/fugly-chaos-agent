@@ -1575,6 +1575,381 @@ const ritualLoop: ScenarioDefinition = {
   variations: ritualLoopVariations,
 };
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ROUND 5: COMBINED FEATURE INTERACTIONS
+// Every prior round tested features in isolation or small clusters. Round 5
+// tests the combined effect of ALL new features together. 4 experiments x 3
+// variations = 12 simulation runs designed to find emergent interactions.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Experiment 17: The Full Experience ──────────────────────────────────────
+// Everything ON — streaks, seasons, party mode, escalation, recap awareness,
+// crew identity. Is the sum greater than the parts?
+
+const fullExperienceVariations: ScenarioVariation[] = [
+  {
+    id: 'full_experience_A',
+    label: 'A',
+    description:
+      'EVERYTHING enabled. Streaks, season framing, party mode, escalation, recap awareness ' +
+      '(social share), crew identity, deep AI memory, adaptive frequency, virality focus, ' +
+      'auto-target quiet players, competitive leaderboard. The maximalist kitchen-sink test.',
+    eventFrequency: {
+      flashMissionIntervalMin: [4, 10],
+      pollIntervalMin: [6, 12],
+      miniGameIntervalMin: [10, 20],
+    },
+    intervalRampFactor: 0.3,
+    viralityFocus: true,
+    autoTargetQuietPlayers: true,
+    competitiveLeaderboard: true,
+    aiPersonalizationDepth: 'deep',
+    aiMemoryEnabled: true,
+    aiAdaptiveFrequency: true,
+    sessionHistory:
+      'Session 7 of regular Thursday nights. Last week Tyler won by a landslide with 3 ' +
+      'flash mission claims in 10 minutes. Jade and Alex have a running rivalry in caption ' +
+      'games. Pat always votes for the absurd option in polls. Marcus once refused a dare ' +
+      'and the group still brings it up. River has quietly won 3 of the last 7 sessions.',
+    crewIdentity: {
+      name: 'The Thursday Wrecking Crew',
+      motto: 'No survivors, no regrets',
+      seasonInfo: 'Season 3 Episode 8',
+    },
+    recapAwareness: 'social_share',
+    ritualNudge: 'streak_pressure',
+  },
+  {
+    id: 'full_experience_B',
+    label: 'B',
+    description:
+      'Top 3 features only: streak pressure, season framing, and recap awareness. ' +
+      'Tests whether the highest-leverage features carry most of the value ' +
+      'without the complexity of the full stack.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    aiPersonalizationDepth: 'light',
+    sessionHistory:
+      'Session 7 of regular Thursday nights. General positive vibes, the group has been ' +
+      'playing together since January.',
+    crewIdentity: {
+      name: 'The Thursday Wrecking Crew',
+      motto: 'No survivors, no regrets',
+      seasonInfo: 'Season 3 Episode 8',
+    },
+    recapAwareness: 'social_share',
+    ritualNudge: 'streak_pressure',
+  },
+  {
+    id: 'full_experience_C',
+    label: 'C',
+    description:
+      'Vanilla baseline control. No ecosystem features, no memory, no crew identity, ' +
+      'no recap, no streaks. Original Chaos Agent as if nothing was ever built. ' +
+      'The benchmark to measure what all these features actually add.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    aiPersonalizationDepth: 'none',
+    ritualNudge: 'none',
+  },
+];
+
+const fullExperience: ScenarioDefinition = {
+  id: 'full_experience',
+  name: 'The Full Experience',
+  description:
+    'Everything ON vs top-3-features vs vanilla baseline. Is the sum greater than the parts, ' +
+    'or does feature overload create noise? Tests whether the maximalist stack creates a ' +
+    'qualitatively different experience or just more cognitive load.',
+  playerCount: 6,
+  personaIds: ['alex', 'jade', 'pat', 'tyler', 'sam', 'marcus'],
+  gameType: 'party_game',
+  chaosComfort: 'maximum',
+  totalMinutes: 120,
+  eventFrequency: {
+    flashMissionIntervalMin: [6, 12],
+    pollIntervalMin: [10, 18],
+    miniGameIntervalMin: [15, 25],
+  },
+  aiMode: true,
+  variations: fullExperienceVariations,
+};
+
+// ── Experiment 18: Speed Round Party Mode ──────────────────────────────────
+// Speed round + party mode + escalation combined. The ultimate 30-minute
+// experience. Can you create a memorable night in half an hour?
+
+const speedRoundPartyVariations: ScenarioVariation[] = [
+  {
+    id: 'speed_round_party_A',
+    label: 'A',
+    description:
+      'Speed round + party mode + escalation + recap awareness. Everything compressed into 30min. ' +
+      'Intervals start tight and get tighter. Virality focus for shareable moments. ' +
+      'Recap awareness so players perform for the highlight reel.',
+    eventFrequency: {
+      flashMissionIntervalMin: [2, 5],
+      pollIntervalMin: [3, 6],
+      miniGameIntervalMin: [5, 10],
+    },
+    intervalRampFactor: 0.4,
+    viralityFocus: true,
+    competitiveLeaderboard: true,
+    recapAwareness: 'social_share',
+    flashPointMultiplier: 2.0,
+    aiAdaptiveFrequency: true,
+    crewIdentity: {
+      name: 'Speed Demons',
+      motto: 'Thirty minutes of no mercy',
+    },
+    ritualNudge: 'streak_pressure',
+  },
+  {
+    id: 'speed_round_party_B',
+    label: 'B',
+    description:
+      'Speed round only (control). Fast intervals, no extras. ' +
+      'Tests whether the raw speed is the value or if the layered features are what make it sing.',
+    eventFrequency: {
+      flashMissionIntervalMin: [2, 5],
+      pollIntervalMin: [3, 6],
+      miniGameIntervalMin: [5, 10],
+    },
+    flashPointMultiplier: 2.0,
+  },
+  {
+    id: 'speed_round_party_C',
+    label: 'C',
+    description:
+      'Speed round + adaptive AI only. Fast intervals with AI that reads the room and adjusts. ' +
+      'No party mode framing, no recap, no crew identity. Tests whether smart pacing beats brute features.',
+    eventFrequency: {
+      flashMissionIntervalMin: [2, 5],
+      pollIntervalMin: [3, 6],
+      miniGameIntervalMin: [5, 10],
+    },
+    flashPointMultiplier: 2.0,
+    aiPersonalizationDepth: 'deep',
+    aiAdaptiveFrequency: true,
+  },
+];
+
+const speedRoundParty: ScenarioDefinition = {
+  id: 'speed_round_party',
+  name: 'Speed Round Party Mode',
+  description:
+    'The ultimate 30-minute experience. Speed round + party mode + escalation vs speed-only vs ' +
+    'speed + adaptive AI. Tests whether you can create a memorable session in half an hour ' +
+    'and whether feature layering helps or hurts at breakneck pace.',
+  playerCount: 6,
+  personaIds: ['alex', 'jade', 'pat', 'tyler', 'sam', 'marcus'],
+  gameType: 'party_game',
+  chaosComfort: 'maximum',
+  totalMinutes: 30,
+  eventFrequency: {
+    flashMissionIntervalMin: [2, 5],
+    pollIntervalMin: [3, 6],
+    miniGameIntervalMin: [5, 10],
+  },
+  aiMode: true,
+  variations: speedRoundPartyVariations,
+};
+
+// ── Experiment 19: The Recruitment Game ─────────────────────────────────────
+// One experienced player brings 5 newbies. How does the app handle asymmetric
+// experience levels? Does the veteran's deep history make newbies feel left out
+// or does it create aspirational "I want that" energy?
+
+const recruitmentGameVariations: ScenarioVariation[] = [
+  {
+    id: 'recruitment_game_A',
+    label: 'A',
+    description:
+      'Standard settings, veteran gets insider references. AI knows Alex has 20 sessions of ' +
+      'history and drops callbacks — "Remember when you did X?" — while newbies get generic events. ' +
+      'Tests whether visible insider status creates FOMO or aspiration.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [8, 15],
+      miniGameIntervalMin: [12, 22],
+    },
+    aiPersonalizationDepth: 'deep',
+    aiMemoryEnabled: true,
+    sessionHistory:
+      'Alex has played 20 sessions across 6 months. Has won 7 times, holds the crew record for ' +
+      'fastest flash mission claim (11 seconds), once completed a dare that involved serenading a ' +
+      'stranger. Known for always picking the most chaotic poll option. All 5 other players (Sam) ' +
+      'are brand new — first session ever, downloaded the app 10 minutes ago.',
+    recapAwareness: 'social_share',
+    tutorialTooltips: true,
+  },
+  {
+    id: 'recruitment_game_B',
+    label: 'B',
+    description:
+      'Buddy system: Alex is explicitly flagged as mentor. Events target newbies inclusively — ' +
+      '"Sam, Alex says you remind them of a young chaos agent. Prove it." Buddy targeting ' +
+      'bridges the experience gap. AI references Alex\'s history as social proof for newbies.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [8, 15],
+      miniGameIntervalMin: [12, 22],
+    },
+    aiPersonalizationDepth: 'deep',
+    aiMemoryEnabled: true,
+    buddyTargeting: true,
+    tutorialTooltips: true,
+    sessionHistory:
+      'Alex has played 20 sessions and is bringing 5 friends for their first time. ' +
+      'Alex volunteered as "chaos mentor" to onboard the newbies. The 5 Sams have never ' +
+      'seen the app before tonight.',
+    recapAwareness: 'social_share',
+    autoTargetQuietPlayers: true,
+  },
+  {
+    id: 'recruitment_game_C',
+    label: 'C',
+    description:
+      'Everyone treated equally (control). No memory, no buddy system, no insider references. ' +
+      'Alex\'s 20 sessions of history are invisible. Tests whether the raw game experience ' +
+      'is good enough to hook newbies without any personalization scaffolding.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [8, 15],
+      miniGameIntervalMin: [12, 22],
+    },
+    aiPersonalizationDepth: 'none',
+    tutorialTooltips: true,
+  },
+];
+
+const recruitmentGame: ScenarioDefinition = {
+  id: 'recruitment_game',
+  name: 'The Recruitment Game',
+  description:
+    'One veteran (Alex, 20 sessions) brings 5 total newbies. Tests how asymmetric experience ' +
+    'levels interact with AI memory and personalization. Insider references vs buddy system vs ' +
+    'equal treatment. The critical growth scenario — every group starts here.',
+  playerCount: 6,
+  personaIds: ['alex', 'sam', 'sam', 'sam', 'sam', 'sam'],
+  gameType: 'party_game',
+  chaosComfort: 'moderate',
+  totalMinutes: 90,
+  eventFrequency: {
+    flashMissionIntervalMin: [6, 12],
+    pollIntervalMin: [8, 15],
+    miniGameIntervalMin: [12, 22],
+  },
+  aiMode: true,
+  variations: recruitmentGameVariations,
+};
+
+// ── Experiment 20: The Long Haul ───────────────────────────────────────────
+// 4-hour marathon session. Does the game hold up or collapse under its own
+// weight? Tests fatigue, content exhaustion, and pacing strategies for
+// sessions that outlast a typical movie.
+
+const longHaulVariations: ScenarioVariation[] = [
+  {
+    id: 'long_haul_A',
+    label: 'A',
+    description:
+      'Escalation + auto-breaks every 45min + intermission at halfway (120min). ' +
+      'Intervals start gentle and compress over time. Forced breaks prevent burnout. ' +
+      'Halfway intermission resets energy with a mini-recap and crew stats so far.',
+    eventFrequency: {
+      flashMissionIntervalMin: [8, 18],
+      pollIntervalMin: [12, 22],
+      miniGameIntervalMin: [18, 30],
+    },
+    intervalRampFactor: 0.4,
+    autoBreakEnabled: true,
+    autoBreakIntervalMin: 45,
+    aiAdaptiveFrequency: true,
+    aiPersonalizationDepth: 'deep',
+    aiMemoryEnabled: true,
+    sessionHistory:
+      'This is the crew\'s quarterly marathon night. Last marathon (3 months ago) went 5 hours ' +
+      'and ended with Tyler asleep on the couch and Jade winning by 200 points. The group ' +
+      'has a tradition of ordering pizza at the halfway mark.',
+    crewIdentity: {
+      name: 'The Marathon Crew',
+      motto: 'We don\'t quit, we pass out',
+      seasonInfo: 'Season 2 Marathon Special',
+    },
+    recapAwareness: 'full_recap',
+    ritualNudge: 'schedule_nudge',
+  },
+  {
+    id: 'long_haul_B',
+    label: 'B',
+    description:
+      'Consistent pacing throughout (no escalation). Same interval for all 240 minutes. ' +
+      'No breaks, no intermission. The "set it and forget it" approach. ' +
+      'Tests whether steady rhythm sustains or becomes wallpaper.',
+    eventFrequency: {
+      flashMissionIntervalMin: [10, 18],
+      pollIntervalMin: [15, 22],
+      miniGameIntervalMin: [20, 30],
+    },
+    intervalRampFactor: 1.0,
+    aiPersonalizationDepth: 'light',
+  },
+  {
+    id: 'long_haul_C',
+    label: 'C',
+    description:
+      'Three-act structure. Act 1 (0-80min): gentle warmup, wide intervals, social missions. ' +
+      'Act 2 (80-160min): intense middle, tight intervals, competitive + sabotage missions. ' +
+      'Act 3 (160-240min): climactic finale, fastest intervals, all event types, comeback mechanics. ' +
+      'Mimics movie pacing applied to a 4-hour session.',
+    eventFrequency: {
+      flashMissionIntervalMin: [5, 15],
+      pollIntervalMin: [8, 18],
+      miniGameIntervalMin: [12, 25],
+    },
+    intervalRampFactor: 0.3,
+    wavePattern: false,
+    comebackMechanic: 'revenge_mission',
+    competitiveLeaderboard: true,
+    aiPersonalizationDepth: 'deep',
+    aiAdaptiveFrequency: true,
+    crewIdentity: {
+      name: 'The Marathon Crew',
+      motto: 'We don\'t quit, we pass out',
+      seasonInfo: 'Season 2 Marathon Special',
+    },
+    recapAwareness: 'full_recap',
+  },
+];
+
+const longHaul: ScenarioDefinition = {
+  id: 'long_haul',
+  name: 'The Long Haul',
+  description:
+    '4-hour marathon session. Escalation + breaks vs consistent pacing vs three-act structure. ' +
+    'Tests content exhaustion, fatigue management, and whether structured pacing strategies ' +
+    'can sustain engagement across 240 minutes or if the game becomes background noise.',
+  playerCount: 6,
+  personaIds: ['marcus', 'jade', 'tyler', 'pat', 'river', 'alex'],
+  gameType: 'house_party',
+  chaosComfort: 'moderate',
+  totalMinutes: 240,
+  eventFrequency: {
+    flashMissionIntervalMin: [8, 15],
+    pollIntervalMin: [12, 20],
+    miniGameIntervalMin: [18, 30],
+  },
+  aiMode: true,
+  variations: longHaulVariations,
+};
+
 export const SCENARIOS: Record<string, ScenarioDefinition> = {
   casual_board_game: casualBoardGame,
   chaotic_party_game: chaoticPartyGame,
@@ -1600,6 +1975,11 @@ export const SCENARIOS: Record<string, ScenarioDefinition> = {
   teaser_buildup: teaserBuildup,
   product_placement: productPlacementScenario,
   ritual_loop: ritualLoop,
+  // Round 5: Combined Feature Interactions
+  full_experience: fullExperience,
+  speed_round_party: speedRoundParty,
+  recruitment_game: recruitmentGame,
+  long_haul: longHaul,
 };
 
 /** Get a scenario by id. Throws on unknown id. */
