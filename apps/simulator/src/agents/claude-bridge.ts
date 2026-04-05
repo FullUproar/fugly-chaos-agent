@@ -50,6 +50,11 @@ const DEFAULT_FINAL_ASSESSMENT: FinalAssessment = {
   would_tell_friends_tomorrow: true,
   felt_closer_to_group: true,
   funniest_moment_shareable: 'Nothing stood out enough to share.',
+  would_schedule_next: false,
+  streak_motivating: false,
+  product_rec_felt: 'ignored',
+  crew_identity_impact: 5,
+  memory_impact: 5,
 };
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -170,6 +175,17 @@ function validateFinalAssessment(raw: Record<string, unknown>): FinalAssessment 
       typeof raw.funniest_moment_shareable === 'string'
         ? raw.funniest_moment_shareable
         : DEFAULT_FINAL_ASSESSMENT.funniest_moment_shareable,
+    would_schedule_next:
+      typeof raw.would_schedule_next === 'boolean' ? raw.would_schedule_next : false,
+    streak_motivating:
+      typeof raw.streak_motivating === 'boolean' ? raw.streak_motivating : false,
+    product_rec_felt: (
+      ['helpful', 'annoying', 'ignored', 'intriguing'].includes(raw.product_rec_felt as any)
+        ? raw.product_rec_felt
+        : 'ignored'
+    ) as FinalAssessment['product_rec_felt'],
+    crew_identity_impact: clamp(raw.crew_identity_impact, 1, 10, 5),
+    memory_impact: clamp(raw.memory_impact, 1, 10, 5),
   };
 }
 

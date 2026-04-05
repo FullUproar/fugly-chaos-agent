@@ -54,6 +54,15 @@ export interface AgentContext {
   notificationMode?: 'silent' | 'subtle' | 'standard';
   /** Whether persona modifiers (e.g. alcohol mode) are active. */
   personaModified?: boolean;
+  // ── Round 4: Ecosystem / Memory / Multi-session context ──
+  /** Fake session history injected to simulate multi-session memory. */
+  sessionHistory?: string;
+  /** Crew/group identity. */
+  crewIdentity?: { name: string; motto: string; seasonInfo?: string };
+  /** Whether agents know a shareable recap exists. */
+  recapAwareness?: 'full_recap' | 'no_recap' | 'social_share';
+  /** Pre-event teaser buildup agents received before tonight. */
+  preEventTeasers?: 'full_teasers' | 'simple_invite' | 'spontaneous';
 }
 
 export interface FinalAssessmentContext {
@@ -76,6 +85,13 @@ export interface FinalAssessmentContext {
   lowPointEnergy: number;
   highlights: { tick: number; title: string; fun: number; dialogue: string }[];
   lowPoints: { tick: number; title: string; annoyance: number; dialogue: string }[];
+  // ── Round 4: Ecosystem / Memory / Multi-session context ──
+  productPlacement?: 'direct_pitch' | 'none' | 'social_proof';
+  ritualNudge?: 'schedule_nudge' | 'none' | 'streak_pressure';
+  sessionHistory?: string;
+  crewIdentity?: { name: string; motto: string; seasonInfo?: string };
+  recapAwareness?: 'full_recap' | 'no_recap' | 'social_share';
+  preEventTeasers?: 'full_teasers' | 'simple_invite' | 'spontaneous';
 }
 
 // ── System prompt: persona-agnostic behavioral instructions ─────────────────
@@ -344,6 +360,83 @@ export function buildUserPrompt(context: AgentContext): string {
     variationBlock = ['>>> ACTIVE MODIFIERS <<<', ...variationLines].join('\n');
   }
 
+  // ── Round 4: Ecosystem context blocks ──
+  let sessionHistoryBlock = '';
+  if (context.sessionHistory) {
+    sessionHistoryBlock = [
+      'YOUR HISTORY WITH THIS GROUP:',
+      context.sessionHistory,
+      '',
+      'React to how much this shared history affects your engagement tonight.',
+      'Do past grudges and running jokes make this more fun or more loaded?',
+    ].join('\n');
+  }
+
+  let crewBlock = '';
+  if (context.crewIdentity) {
+    const crew = context.crewIdentity;
+    crewBlock = [
+      'YOUR CREW:',
+      `Crew name: ${crew.name}`,
+      `Motto: "${crew.motto}"`,
+      crew.seasonInfo ? `Season info: ${crew.seasonInfo}` : '',
+      '',
+      'React to how much having a crew identity affects your investment in tonight.',
+      'Does the crew name and motto make you feel part of something or is it cringe?',
+    ].filter(Boolean).join('\n');
+  }
+
+  let recapBlock = '';
+  if (context.recapAwareness === 'full_recap') {
+    recapBlock = [
+      "TONIGHT'S FORMAT:",
+      'Everything tonight is being recorded for a shareable recap.',
+      'Badges, best quotes, highlight reel — the whole thing.',
+      'React to whether knowing this changes how you play.',
+    ].join('\n');
+  } else if (context.recapAwareness === 'no_recap') {
+    recapBlock = [
+      "TONIGHT'S FORMAT:",
+      'No recap tonight. Just play. Nothing is being recorded or shared.',
+      'React to whether the lack of a recap changes your energy.',
+    ].join('\n');
+  } else if (context.recapAwareness === 'social_share') {
+    recapBlock = [
+      "TONIGHT'S FORMAT:",
+      'Everything tonight is being recorded for a shareable recap AND it will be posted on social media.',
+      'Your quotes, your reactions, your moments — all public.',
+      'React to whether knowing this is going on social media changes how you perform.',
+    ].join('\n');
+  }
+
+  let teaserBlock = '';
+  if (context.preEventTeasers === 'full_teasers') {
+    teaserBlock = [
+      'BUILDUP:',
+      'For the past 5 days you received cryptic teasers:',
+      '- Day 1: "Your chaos profile is being compiled..."',
+      '- Day 2: "Someone in your group has a weakness we\'ll exploit Thursday."',
+      '- Day 3: "The missions are being custom-built. You\'re not ready."',
+      '- Day 4: "One of you will crack under pressure. We know who."',
+      '- Day 5: "Tonight. 7pm. No mercy."',
+      '',
+      'You\'ve been thinking about this all week. Anticipation is HIGH.',
+      'React to whether the buildup made tonight feel more or less intense.',
+    ].join('\n');
+  } else if (context.preEventTeasers === 'simple_invite') {
+    teaserBlock = [
+      'BUILDUP:',
+      'You received a simple invite 5 days ago: "Game night Thursday at 7. Be there."',
+      'No hype, no teasers. You knew it was happening, that\'s it.',
+    ].join('\n');
+  } else if (context.preEventTeasers === 'spontaneous') {
+    teaserBlock = [
+      'BUILDUP:',
+      'You got a text an hour ago: "Come over, we\'re playing games."',
+      'You just showed up. No expectations, no prep, no anticipation.',
+    ].join('\n');
+  }
+
   // ── Final assembly ──
   const blocks = [
     personaBlock,
@@ -369,6 +462,18 @@ export function buildUserPrompt(context: AgentContext): string {
   }
   if (aiModeBlock) {
     blocks.push('', aiModeBlock);
+  }
+  if (sessionHistoryBlock) {
+    blocks.push('', sessionHistoryBlock);
+  }
+  if (crewBlock) {
+    blocks.push('', crewBlock);
+  }
+  if (recapBlock) {
+    blocks.push('', recapBlock);
+  }
+  if (teaserBlock) {
+    blocks.push('', teaserBlock);
   }
 
   blocks.push('', `How does ${persona.name} react RIGHT NOW?`);
@@ -441,6 +546,72 @@ export function buildFinalAssessmentPrompt(ctx: FinalAssessmentContext): string 
         ].join('\n')
       : 'YOUR LOW POINTS: Nothing was bad enough to remember.';
 
+  // ── Round 4: Ecosystem context for final assessment ──
+  let productPlacementBlock = '';
+  if (ctx.productPlacement === 'direct_pitch') {
+    productPlacementBlock = [
+      'RECAP NOTE:',
+      'Your post-game recap included this product recommendation:',
+      '"Your group needs a fast closer — try Splice Your Dice! Available on Afterroar HQ."',
+      'React to how this recommendation made you feel.',
+    ].join('\n');
+  } else if (ctx.productPlacement === 'social_proof') {
+    productPlacementBlock = [
+      'RECAP NOTE:',
+      'Your post-game recap mentioned:',
+      '"3 players in your crew already own Hack Your Deck — add it to next game night?"',
+      'React to how this peer-driven suggestion made you feel.',
+    ].join('\n');
+  }
+  // productPlacement === 'none' -> no block
+
+  let ritualNudgeBlock = '';
+  if (ctx.ritualNudge === 'schedule_nudge') {
+    ritualNudgeBlock = [
+      'END SCREEN:',
+      'The end screen said: "Make this a ritual? Schedule next Thursday on Afterroar HQ."',
+      'React to this scheduling prompt.',
+    ].join('\n');
+  } else if (ctx.ritualNudge === 'streak_pressure') {
+    ritualNudgeBlock = [
+      'END SCREEN:',
+      'The end screen said: "Your crew has played 4 nights. The streak is alive. Don\'t break it."',
+      'React to this streak messaging.',
+    ].join('\n');
+  }
+  // ritualNudge === 'none' -> no block
+
+  let ecosystemContextBlock = '';
+  const ecosystemLines: string[] = [];
+  if (ctx.sessionHistory) {
+    ecosystemLines.push('YOUR HISTORY WITH THIS GROUP:', ctx.sessionHistory, '');
+  }
+  if (ctx.crewIdentity) {
+    ecosystemLines.push(
+      'YOUR CREW:',
+      `Crew: ${ctx.crewIdentity.name} | Motto: "${ctx.crewIdentity.motto}"`,
+      ctx.crewIdentity.seasonInfo ? `Season: ${ctx.crewIdentity.seasonInfo}` : '',
+      '',
+    );
+  }
+  if (ctx.recapAwareness === 'full_recap') {
+    ecosystemLines.push('Tonight had a full recap with badges, quotes, and highlights.');
+  } else if (ctx.recapAwareness === 'no_recap') {
+    ecosystemLines.push('Tonight had no recap — just playing.');
+  } else if (ctx.recapAwareness === 'social_share') {
+    ecosystemLines.push('Tonight\'s recap is being shared on social media.');
+  }
+  if (ctx.preEventTeasers === 'full_teasers') {
+    ecosystemLines.push('You received 5 days of cryptic teasers building up to tonight.');
+  } else if (ctx.preEventTeasers === 'simple_invite') {
+    ecosystemLines.push('You received a simple invite 5 days ago.');
+  } else if (ctx.preEventTeasers === 'spontaneous') {
+    ecosystemLines.push('You showed up spontaneously with no advance notice.');
+  }
+  if (ecosystemLines.length > 0) {
+    ecosystemContextBlock = ecosystemLines.filter(Boolean).join('\n');
+  }
+
   const jsonSchema = `ANSWER THESE QUESTIONS AS ${persona.name} (JSON):
 {
   "overall_fun_rating": <1-10>,
@@ -462,10 +633,15 @@ export function buildFinalAssessmentPrompt(ctx: FinalAssessmentContext): string 
   "would_post_on_social": <true/false - would you mention this on social media?>,
   "would_tell_friends_tomorrow": <true/false - would you tell someone about this tomorrow?>,
   "felt_closer_to_group": <true/false - did this bring the group closer?>,
-  "funniest_moment_shareable": "<describe the moment you'd share with someone who wasn't there>"
+  "funniest_moment_shareable": "<describe the moment you'd share with someone who wasn't there>",
+  "would_schedule_next": <true/false - would you schedule the next game night right now?>,
+  "streak_motivating": <true/false - does the idea of a play streak motivate you to come back?>,
+  "product_rec_felt": "helpful" | "annoying" | "ignored" | "intriguing",
+  "crew_identity_impact": <1-10 how much crew identity affected your experience>,
+  "memory_impact": <1-10 how much references to past sessions affected your experience>
 }`;
 
-  return [
+  const finalBlocks = [
     personaBlock,
     '',
     'THE NIGHT IS OVER. Here\'s what happened:',
@@ -475,7 +651,19 @@ export function buildFinalAssessmentPrompt(ctx: FinalAssessmentContext): string 
     highlightBlock,
     '',
     lowPointBlock,
-    '',
-    jsonSchema,
-  ].join('\n');
+  ];
+
+  if (ecosystemContextBlock) {
+    finalBlocks.push('', ecosystemContextBlock);
+  }
+  if (productPlacementBlock) {
+    finalBlocks.push('', productPlacementBlock);
+  }
+  if (ritualNudgeBlock) {
+    finalBlocks.push('', ritualNudgeBlock);
+  }
+
+  finalBlocks.push('', jsonSchema);
+
+  return finalBlocks.join('\n');
 }

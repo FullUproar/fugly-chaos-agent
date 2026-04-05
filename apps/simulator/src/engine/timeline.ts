@@ -793,6 +793,11 @@ export class Timeline {
         hasDoublePoints,
         notificationMode: agentNotifMode,
         personaModified,
+        // Round 4 ecosystem context
+        sessionHistory: variation?.sessionHistory,
+        crewIdentity: variation?.crewIdentity,
+        recapAwareness: variation?.recapAwareness,
+        preEventTeasers: variation?.preEventTeasers,
         event: {
           type: event.type,
           title: event.title,
@@ -880,6 +885,13 @@ export class Timeline {
           annoyance: lp.annoyance,
           dialogue: lp.dialogue,
         })),
+        // Round 4 ecosystem context
+        productPlacement: this.config.variation?.productPlacement,
+        ritualNudge: this.config.variation?.ritualNudge,
+        sessionHistory: this.config.variation?.sessionHistory,
+        crewIdentity: this.config.variation?.crewIdentity,
+        recapAwareness: this.config.variation?.recapAwareness,
+        preEventTeasers: this.config.variation?.preEventTeasers,
       };
 
       const prompt = buildFinalAssessmentPrompt(ctx);

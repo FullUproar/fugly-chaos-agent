@@ -67,6 +67,21 @@ export interface ScenarioVariation {
   wavePattern?: boolean;
   /** Only half the agents see each event (alternating halves). */
   splitRoom?: boolean;
+
+  // ── Round 4: Ecosystem / Memory / Multi-session fields ──
+
+  /** Fake session history injected into agent prompts to simulate multi-session memory. */
+  sessionHistory?: string;
+  /** Crew/group identity with name, motto, and optional season info. */
+  crewIdentity?: { name: string; motto: string; seasonInfo?: string };
+  /** Whether agents know a shareable recap exists. */
+  recapAwareness?: 'full_recap' | 'no_recap' | 'social_share';
+  /** Pre-event teaser buildup agents received before tonight. */
+  preEventTeasers?: 'full_teasers' | 'simple_invite' | 'spontaneous';
+  /** Product recommendation style in the recap. */
+  productPlacement?: 'direct_pitch' | 'none' | 'social_proof';
+  /** End-of-session ritual/scheduling nudge type. */
+  ritualNudge?: 'schedule_nudge' | 'none' | 'streak_pressure';
 }
 
 export interface ScenarioDefinition {
@@ -1150,6 +1165,416 @@ const speedRound: ScenarioDefinition = {
   variations: speedRoundVariations,
 };
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ROUND 4: ECOSYSTEM, MEMORY & MULTI-SESSION EXPERIMENTS
+// Test whether features beyond the core game loop — session history, crew
+// identity, recaps, teasers, product placement, and ritual nudges — change
+// engagement, retention, and word-of-mouth.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const DEEP_SESSION_HISTORY =
+  "This is your 5th session together. Session 1: Jade won by 40 points, Marcus was furious and accused her of cheating. " +
+  "Session 2: Tyler missed half the events and everyone made fun of him. Session 3: Pat called 4 breaks because Marcus " +
+  "kept getting upset. River shocked everyone with a perfect lie detector performance. Session 4: Alex gamed the voting " +
+  "system and won by exploiting the auction mechanic. Diana challenged every claim and became known as 'The Skeptic IRL'. " +
+  "The group has running jokes about Marcus's competitiveness, Tyler's phone addiction, and Jade's tendency to vote ACCEPT on everything.";
+
+// ── Experiment 11: Remember Last Time ──────────────────────────────────────
+// Does AI referencing past sessions improve the experience?
+
+const rememberLastTimeVariations: ScenarioVariation[] = [
+  {
+    id: 'remember_last_time_A',
+    label: 'A',
+    description:
+      'Deep memory: AI references specific past moments, grudges, running jokes, and individual ' +
+      'session histories. The agents feel like the AI has been watching them for months.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    aiPersonalizationDepth: 'deep',
+    sessionHistory: DEEP_SESSION_HISTORY,
+  },
+  {
+    id: 'remember_last_time_B',
+    label: 'B',
+    description:
+      'Light memory: AI mentions "you\'ve played together 4 times" but no specifics. ' +
+      'Generic continuity without personal detail.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    aiPersonalizationDepth: 'light',
+    sessionHistory: "This is your 5th session together. You've played 4 times before. The group knows each other well.",
+  },
+  {
+    id: 'remember_last_time_C',
+    label: 'C',
+    description:
+      'No memory: first time playing together. Control group — no session history at all.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    aiPersonalizationDepth: 'none',
+  },
+];
+
+const rememberLastTime: ScenarioDefinition = {
+  id: 'remember_last_time',
+  name: 'Remember Last Time',
+  description:
+    'Does AI referencing past sessions improve the experience? Deep memory (specific grudges, ' +
+    'running jokes) vs light memory (generic continuity) vs no memory (control). ' +
+    'Tests whether multi-session context creates stickier engagement.',
+  playerCount: 6,
+  personaIds: ['marcus', 'jade', 'tyler', 'pat', 'river', 'alex'],
+  gameType: 'party_game',
+  chaosComfort: 'moderate',
+  totalMinutes: 120,
+  eventFrequency: {
+    flashMissionIntervalMin: [6, 12],
+    pollIntervalMin: [10, 18],
+    miniGameIntervalMin: [15, 25],
+  },
+  variations: rememberLastTimeVariations,
+};
+
+// ── Experiment 12: Crew Identity ───────────────────────────────────────────
+// Does having a group name/identity change engagement?
+
+const crewIdentityVariations: ScenarioVariation[] = [
+  {
+    id: 'crew_identity_A',
+    label: 'A',
+    description:
+      'Named crew: "The Thursday Wrecking Crew" with motto, shared history, and rivalries. ' +
+      'The group has a persistent identity across sessions.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    crewIdentity: {
+      name: 'The Thursday Wrecking Crew',
+      motto: 'We came to wreck, not to rest.',
+    },
+  },
+  {
+    id: 'crew_identity_B',
+    label: 'B',
+    description:
+      'Anonymous group: no crew identity, just room codes. The vanilla experience — ' +
+      'players are just people in a session.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+  },
+  {
+    id: 'crew_identity_C',
+    label: 'C',
+    description:
+      'Named crew + season standings: "The Thursday Wrecking Crew" in Season 3 Episode 8. ' +
+      'Marcus leads the all-time leaderboard. Full narrative arc across sessions.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    crewIdentity: {
+      name: 'The Thursday Wrecking Crew',
+      motto: 'We came to wreck, not to rest.',
+      seasonInfo: "You're in Season 3, Episode 8. Marcus leads the all-time leaderboard with 2,847 career points. Jade is 200 behind. Tyler has the most 'most improved' awards.",
+    },
+  },
+];
+
+const crewIdentity: ScenarioDefinition = {
+  id: 'crew_identity',
+  name: 'Crew Identity',
+  description:
+    'Does having a group name/identity change engagement? Named crew with motto vs anonymous ' +
+    'room code vs named crew with full season standings. Tests whether persistent group identity ' +
+    'creates stronger attachment and competitive investment.',
+  playerCount: 6,
+  personaIds: ['marcus', 'jade', 'tyler', 'pat', 'river', 'alex'],
+  gameType: 'party_game',
+  chaosComfort: 'moderate',
+  totalMinutes: 120,
+  eventFrequency: {
+    flashMissionIntervalMin: [6, 12],
+    pollIntervalMin: [10, 18],
+    miniGameIntervalMin: [15, 25],
+  },
+  variations: crewIdentityVariations,
+};
+
+// ── Experiment 13: The Recap Effect ────────────────────────────────────────
+// Does knowing a shareable recap exists change behavior?
+
+const recapEffectVariations: ScenarioVariation[] = [
+  {
+    id: 'recap_effect_A',
+    label: 'A',
+    description:
+      'Full recap awareness: players know everything is being recorded for a shareable recap ' +
+      'with badges, quotes, and highlights. Performative incentive active.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    recapAwareness: 'full_recap',
+  },
+  {
+    id: 'recap_effect_B',
+    label: 'B',
+    description:
+      'No recap: players are told "no recap tonight, just play." Pure in-the-moment experience ' +
+      'with no external audience or record.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    recapAwareness: 'no_recap',
+  },
+  {
+    id: 'recap_effect_C',
+    label: 'C',
+    description:
+      'Social share recap: players know recap exists AND that it\'ll be shared on social media. ' +
+      'Maximum performative pressure — everything is public.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    recapAwareness: 'social_share',
+  },
+];
+
+const recapEffect: ScenarioDefinition = {
+  id: 'recap_effect',
+  name: 'The Recap Effect',
+  description:
+    'Does knowing a shareable recap exists change behavior? Full recap awareness vs no recap vs ' +
+    'social media share. Tests whether the "audience effect" makes people try harder, ' +
+    'perform more, or just feel pressured.',
+  playerCount: 6,
+  personaIds: ['marcus', 'jade', 'tyler', 'pat', 'river', 'alex'],
+  gameType: 'party_game',
+  chaosComfort: 'moderate',
+  totalMinutes: 120,
+  eventFrequency: {
+    flashMissionIntervalMin: [6, 12],
+    pollIntervalMin: [10, 18],
+    miniGameIntervalMin: [15, 25],
+  },
+  variations: recapEffectVariations,
+};
+
+// ── Experiment 14: Teaser Buildup ──────────────────────────────────────────
+// Does days of pre-event teasers improve the actual session?
+
+const teaserBuildupVariations: ScenarioVariation[] = [
+  {
+    id: 'teaser_buildup_A',
+    label: 'A',
+    description:
+      'Full teasers: agents received 5 days of cryptic teasers — "Your chaos profile is being compiled...", ' +
+      '"Someone has a weakness we\'ll exploit...", "Thursday is going to be different." Maximum anticipation.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    preEventTeasers: 'full_teasers',
+  },
+  {
+    id: 'teaser_buildup_B',
+    label: 'B',
+    description:
+      'Simple invite: agents received a plain invite 5 days ago, no teasers. ' +
+      '"Game night Thursday at 7. Be there." Functional, zero hype.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    preEventTeasers: 'simple_invite',
+  },
+  {
+    id: 'teaser_buildup_C',
+    label: 'C',
+    description:
+      'Spontaneous: agents just showed up with no advance notice. Someone texted "come over" ' +
+      'an hour ago. Zero buildup, zero expectations.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    preEventTeasers: 'spontaneous',
+  },
+];
+
+const teaserBuildup: ScenarioDefinition = {
+  id: 'teaser_buildup',
+  name: 'Teaser Buildup',
+  description:
+    'Does days of pre-event teasers improve the actual session? Full 5-day teaser campaign vs ' +
+    'simple invite vs spontaneous show-up. Tests whether anticipation translates to higher ' +
+    'engagement or just sets expectations too high.',
+  playerCount: 6,
+  personaIds: ['marcus', 'jade', 'tyler', 'pat', 'river', 'alex'],
+  gameType: 'party_game',
+  chaosComfort: 'moderate',
+  totalMinutes: 120,
+  eventFrequency: {
+    flashMissionIntervalMin: [6, 12],
+    pollIntervalMin: [10, 18],
+    miniGameIntervalMin: [15, 25],
+  },
+  variations: teaserBuildupVariations,
+};
+
+// ── Experiment 15: Product Placement ───────────────────────────────────────
+// Does contextual product recommendation in the recap feel helpful or gross?
+
+const productPlacementVariations: ScenarioVariation[] = [
+  {
+    id: 'product_placement_A',
+    label: 'A',
+    description:
+      'Direct pitch: recap includes "Your group needs a fast closer — try Splice Your Dice!" ' +
+      'Straightforward product recommendation in the session recap.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    productPlacement: 'direct_pitch',
+  },
+  {
+    id: 'product_placement_B',
+    label: 'B',
+    description:
+      'No product mention: recap is pure stats and highlights. Zero commercial content. ' +
+      'The recap is a gift, not a sales funnel.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    productPlacement: 'none',
+  },
+  {
+    id: 'product_placement_C',
+    label: 'C',
+    description:
+      'Social proof: recap mentions "3 players in your crew own Hack Your Deck — add it next time?" ' +
+      'Peer-driven suggestion, not corporate pitch.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    productPlacement: 'social_proof',
+  },
+];
+
+const productPlacementScenario: ScenarioDefinition = {
+  id: 'product_placement',
+  name: 'Product Placement',
+  description:
+    'Does contextual product recommendation in the recap feel helpful or gross? Direct pitch vs ' +
+    'no mention vs social proof. Tests the line between helpful discovery and slimy upsell.',
+  playerCount: 6,
+  personaIds: ['marcus', 'jade', 'tyler', 'pat', 'river', 'alex'],
+  gameType: 'party_game',
+  chaosComfort: 'moderate',
+  totalMinutes: 120,
+  eventFrequency: {
+    flashMissionIntervalMin: [6, 12],
+    pollIntervalMin: [10, 18],
+    miniGameIntervalMin: [15, 25],
+  },
+  variations: productPlacementVariations,
+};
+
+// ── Experiment 16: The Ritual Loop ─────────────────────────────────────────
+// Does the "make it a ritual" nudge work?
+
+const ritualLoopVariations: ScenarioVariation[] = [
+  {
+    id: 'ritual_loop_A',
+    label: 'A',
+    description:
+      'Schedule nudge: end screen says "Make this a ritual? Schedule next Thursday on Afterroar HQ." ' +
+      'Explicit call-to-action for recurring play.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    ritualNudge: 'schedule_nudge',
+  },
+  {
+    id: 'ritual_loop_B',
+    label: 'B',
+    description:
+      'No nudge: end screen just shows results. No scheduling prompt, no streak mention. ' +
+      'Clean ending with zero pressure.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    ritualNudge: 'none',
+  },
+  {
+    id: 'ritual_loop_C',
+    label: 'C',
+    description:
+      'Streak pressure: end screen says "Your crew has played 4 nights. The streak is alive. Don\'t break it." ' +
+      'Social/emotional pressure to maintain consistency.',
+    eventFrequency: {
+      flashMissionIntervalMin: [6, 12],
+      pollIntervalMin: [10, 18],
+      miniGameIntervalMin: [15, 25],
+    },
+    ritualNudge: 'streak_pressure',
+  },
+];
+
+const ritualLoop: ScenarioDefinition = {
+  id: 'ritual_loop',
+  name: 'The Ritual Loop',
+  description:
+    'Does the "make it a ritual" nudge work? Schedule CTA vs no nudge vs streak pressure. ' +
+    'Tests whether explicit scheduling prompts or FOMO-driven streak messaging drives ' +
+    'intent to return.',
+  playerCount: 6,
+  personaIds: ['marcus', 'jade', 'tyler', 'pat', 'river', 'alex'],
+  gameType: 'party_game',
+  chaosComfort: 'moderate',
+  totalMinutes: 120,
+  eventFrequency: {
+    flashMissionIntervalMin: [6, 12],
+    pollIntervalMin: [10, 18],
+    miniGameIntervalMin: [15, 25],
+  },
+  variations: ritualLoopVariations,
+};
+
 export const SCENARIOS: Record<string, ScenarioDefinition> = {
   casual_board_game: casualBoardGame,
   chaotic_party_game: chaoticPartyGame,
@@ -1168,6 +1593,13 @@ export const SCENARIOS: Record<string, ScenarioDefinition> = {
   comeback_kid: comebackKid,
   silent_chaos: silentChaos,
   speed_round: speedRound,
+  // Round 4: Ecosystem / Memory / Multi-session
+  remember_last_time: rememberLastTime,
+  crew_identity: crewIdentity,
+  recap_effect: recapEffect,
+  teaser_buildup: teaserBuildup,
+  product_placement: productPlacementScenario,
+  ritual_loop: ritualLoop,
 };
 
 /** Get a scenario by id. Throws on unknown id. */

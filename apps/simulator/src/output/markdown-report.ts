@@ -105,6 +105,11 @@ export function generateMarkdownReport(
       lines.push(`- **Would recommend:** ${assessment.would_recommend ? 'Yes' : 'No'}`);
       lines.push(`- **Would pay for AI:** ${assessment.would_pay_for_ai ? 'Yes' : 'No'}`);
       lines.push(`- **Ideal event frequency:** ${assessment.ideal_event_frequency}`);
+      lines.push(`- **Would schedule next:** ${assessment.would_schedule_next ? 'Yes' : 'No'}`);
+      lines.push(`- **Streak motivating:** ${assessment.streak_motivating ? 'Yes' : 'No'}`);
+      lines.push(`- **Product rec felt:** ${assessment.product_rec_felt}`);
+      lines.push(`- **Crew identity impact:** ${assessment.crew_identity_impact}/10`);
+      lines.push(`- **Memory impact:** ${assessment.memory_impact}/10`);
     }
   }
 
@@ -178,6 +183,21 @@ export function generateMarkdownReport(
   lines.push(`| Next-Day Story | ${f.nextDayStory}/10 ${scoreBar(f.nextDayStory)} |`);
   lines.push(`| Group Bonding Effect | ${f.groupBondingEffect}/10 ${scoreBar(f.groupBondingEffect)} |`);
   lines.push(`| Memeable Moments | ${f.memeableMoments}/10 ${scoreBar(f.memeableMoments)} |`);
+
+  // ── Ecosystem / Memory / Multi-session Metrics ──
+  lines.push('');
+  lines.push('## Ecosystem & Retention Metrics');
+  lines.push('');
+  lines.push('How well do ecosystem features (memory, crew identity, recaps, teasers, product placement, ritual nudges) perform?');
+  lines.push('');
+  lines.push('| Metric | Score |');
+  lines.push('|--------|-------|');
+  lines.push(`| Would Schedule Next | ${f.wouldScheduleNext}/10 ${scoreBar(f.wouldScheduleNext)} |`);
+  lines.push(`| Streak Motivating | ${f.streakMotivating}/10 ${scoreBar(f.streakMotivating)} |`);
+  lines.push(`| Product Rec Helpful/Intriguing | ${f.productRecHelpful}/10 ${scoreBar(f.productRecHelpful)} |`);
+  lines.push(`| Product Rec Annoying | ${f.productRecAnnoying}/10 ${scoreBar(f.productRecAnnoying)} |`);
+  lines.push(`| Crew Identity Impact | ${f.crewIdentityImpact}/10 ${scoreBar(f.crewIdentityImpact)} |`);
+  lines.push(`| Memory Impact | ${f.memoryImpact}/10 ${scoreBar(f.memoryImpact)} |`);
 
   // Collect shareable moments from assessments
   const shareableMoments: string[] = [];

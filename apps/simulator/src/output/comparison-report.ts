@@ -111,6 +111,32 @@ export function generateComparisonReport(
     lines.push(`| ${row.label} | ${values.join(' | ')} | **${winner}** |`);
   }
 
+  // ── Ecosystem / Retention Comparison ──
+  lines.push('');
+  lines.push('## Ecosystem & Retention Comparison');
+  lines.push('');
+  lines.push(buildTableHeader(variationResults));
+  lines.push(buildTableSeparator(variationResults.length));
+
+  const ecosystemRows: Array<{ label: string; key: keyof EvaluationFactors; lowerBetter?: boolean }> = [
+    { label: 'Would Schedule Next', key: 'wouldScheduleNext' },
+    { label: 'Streak Motivating', key: 'streakMotivating' },
+    { label: 'Product Rec Helpful', key: 'productRecHelpful' },
+    { label: 'Product Rec Annoying', key: 'productRecAnnoying', lowerBetter: true },
+    { label: 'Crew Identity Impact', key: 'crewIdentityImpact' },
+    { label: 'Memory Impact', key: 'memoryImpact' },
+  ];
+
+  for (const row of ecosystemRows) {
+    const values = variationResults.map((vr) => `${vr.metrics.evaluationFactors[row.key]}/10`);
+    const numValues = variationResults.map((vr) => vr.metrics.evaluationFactors[row.key]);
+    const bestIdx = row.lowerBetter
+      ? numValues.indexOf(Math.min(...numValues))
+      : numValues.indexOf(Math.max(...numValues));
+    const winner = variationResults[bestIdx].variation;
+    lines.push(`| ${row.label} | ${values.join(' | ')} | **${winner}** |`);
+  }
+
   // ── Per-Agent Comparison ──
   lines.push('');
   lines.push('## Per-Agent Comparison');

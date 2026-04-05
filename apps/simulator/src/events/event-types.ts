@@ -69,4 +69,10 @@ export interface FinalAssessment {
   would_tell_friends_tomorrow: boolean;
   felt_closer_to_group: boolean;
   funniest_moment_shareable: string;
+  // Round 4: Ecosystem / Memory / Multi-session fields
+  would_schedule_next: boolean;
+  streak_motivating: boolean;
+  product_rec_felt: 'helpful' | 'annoying' | 'ignored' | 'intriguing';
+  crew_identity_impact: number;
+  memory_impact: number;
 }

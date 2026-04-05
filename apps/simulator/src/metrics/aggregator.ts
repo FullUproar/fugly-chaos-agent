@@ -424,6 +424,38 @@ export class MetricsAggregator {
       nextDayStory: round(nextDayStory),
       groupBondingEffect: round(groupBondingEffect),
       memeableMoments: round(memeableMoments),
+
+      // Round 4: Ecosystem / Memory / Multi-session metrics
+      wouldScheduleNext: round(
+        assessmentValues.length > 0
+          ? (assessmentValues.filter((a) => a.would_schedule_next).length / assessmentValues.length) * 10
+          : 0,
+      ),
+      streakMotivating: round(
+        assessmentValues.length > 0
+          ? (assessmentValues.filter((a) => a.streak_motivating).length / assessmentValues.length) * 10
+          : 0,
+      ),
+      productRecHelpful: round(
+        assessmentValues.length > 0
+          ? (assessmentValues.filter((a) => a.product_rec_felt === 'helpful' || a.product_rec_felt === 'intriguing').length / assessmentValues.length) * 10
+          : 0,
+      ),
+      productRecAnnoying: round(
+        assessmentValues.length > 0
+          ? (assessmentValues.filter((a) => a.product_rec_felt === 'annoying').length / assessmentValues.length) * 10
+          : 0,
+      ),
+      crewIdentityImpact: round(
+        assessmentValues.length > 0
+          ? avg(assessmentValues.map((a) => a.crew_identity_impact))
+          : 5,
+      ),
+      memoryImpact: round(
+        assessmentValues.length > 0
+          ? avg(assessmentValues.map((a) => a.memory_impact))
+          : 5,
+      ),
     };
   }
 

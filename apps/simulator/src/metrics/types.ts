@@ -96,4 +96,12 @@ export interface EvaluationFactors {
   nextDayStory: number;                // Would agents tell someone about this tomorrow?
   groupBondingEffect: number;          // Did this bring the group closer?
   memeableMoments: number;             // How many meme-worthy moments happened?
+
+  // Round 4: Ecosystem / Memory / Multi-session metrics
+  wouldScheduleNext: number;           // Would agents schedule the next session?
+  streakMotivating: number;            // Does streak messaging motivate return?
+  productRecHelpful: number;           // How many felt the product rec was helpful/intriguing?
+  productRecAnnoying: number;          // How many felt the product rec was annoying?
+  crewIdentityImpact: number;          // Average crew identity impact (1-10)
+  memoryImpact: number;                // Average memory impact (1-10)
 }
