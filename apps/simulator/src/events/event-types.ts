@@ -1,4 +1,4 @@
-export type SimEventType = 'flash_mission' | 'poll' | 'mini_game' | 'standing_claim' | 'vote_resolution';
+export type SimEventType = 'flash_mission' | 'poll' | 'mini_game' | 'standing_claim' | 'vote_resolution' | 'host_action';
 
 export interface SimEvent {
   id: string;
@@ -44,6 +44,7 @@ export interface AgentResponse {
   wants_less_chaos: boolean;
   notification_feedback: 'too_loud' | 'too_quiet' | 'just_right' | 'missed_it';
   overall_vibe: string;
+  host_power_used: string | null;
 }
 
 export interface FinalAssessment {
@@ -62,4 +63,10 @@ export interface FinalAssessment {
   best_moment: string;
   narrative_summary: string;
   suggestions: string[];
+  // Virality fields
+  would_screenshot_moment: boolean;
+  would_post_on_social: boolean;
+  would_tell_friends_tomorrow: boolean;
+  felt_closer_to_group: boolean;
+  funniest_moment_shareable: string;
 }

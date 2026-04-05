@@ -366,6 +366,28 @@ export class MetricsAggregator {
       ? (assessmentValues.filter((a) => a.would_pay_for_ai).length / assessmentValues.length) * 10
       : 5;
 
+    // Virality metrics from assessments
+    const screenshotMoment = assessmentValues.length > 0
+      ? (assessmentValues.filter((a) => a.would_screenshot_moment).length / assessmentValues.length) * 10
+      : 0;
+    const socialMediaMention = assessmentValues.length > 0
+      ? (assessmentValues.filter((a) => a.would_post_on_social).length / assessmentValues.length) * 10
+      : 0;
+    const nextDayStory = assessmentValues.length > 0
+      ? (assessmentValues.filter((a) => a.would_tell_friends_tomorrow).length / assessmentValues.length) * 10
+      : 0;
+    const groupBondingEffect = assessmentValues.length > 0
+      ? (assessmentValues.filter((a) => a.felt_closer_to_group).length / assessmentValues.length) * 10
+      : 0;
+    // Memeable moments: count shareable funny moments that have substance
+    const memeableMoments = assessmentValues.length > 0
+      ? (assessmentValues.filter((a) =>
+          a.funniest_moment_shareable &&
+          a.funniest_moment_shareable.length > 20 &&
+          !a.funniest_moment_shareable.toLowerCase().includes('nothing')
+        ).length / assessmentValues.length) * 10
+      : 0;
+
     // Factor 20: Weighted average of all factors
     const allFactors = [
       flashFrequencyOptimal, flashEngageRate, flashAttentionCost, humorQuality,
@@ -397,6 +419,11 @@ export class MetricsAggregator {
       wouldRecommend: round(wouldRecommend),
       wouldPayForAI: round(wouldPayForAI),
       overallAssessment: round(overallAssessment),
+      screenshotMoment: round(screenshotMoment),
+      socialMediaMention: round(socialMediaMention),
+      nextDayStory: round(nextDayStory),
+      groupBondingEffect: round(groupBondingEffect),
+      memeableMoments: round(memeableMoments),
     };
   }
 
@@ -491,8 +518,37 @@ export class MetricsAggregator {
       );
     }
 
-    // Cap at 10 recommendations
-    return recs.slice(0, 10);
+    // Virality-specific recommendations
+    if (factors.screenshotMoment >= 6) {
+      const miniStats = perEventType.get('mini_game');
+      const drawingPct = miniStats ? ((miniStats.avgFun / 10) * 100).toFixed(0) : '?';
+      recs.push(
+        `Drawing mini-games generated the most screenshot-worthy moments (${drawingPct}% engagement). Increase frequency.`,
+      );
+    }
+    if (factors.screenshotMoment < 4) {
+      recs.push(
+        `Screenshot-worthy moments scored ${factors.screenshotMoment}/10. Add more visual/dramatic events (drawings, reveals).`,
+      );
+    }
+    if (factors.nextDayStory >= 7) {
+      recs.push(
+        `Verdict reveals were mentioned as shareable by ${(factors.nextDayStory * 10).toFixed(0)}% of agents. This is strong word-of-mouth potential.`,
+      );
+    }
+    if (factors.socialMediaMention < 3) {
+      recs.push(
+        `Social media mention potential is low (${factors.socialMediaMention}/10). Consider adding share-friendly moment recaps or highlight reels.`,
+      );
+    }
+    if (factors.groupBondingEffect >= 7) {
+      recs.push(
+        `Group bonding scored ${factors.groupBondingEffect}/10 -- the social glue is working. Preserve collaborative events.`,
+      );
+    }
+
+    // Cap at 12 recommendations
+    return recs.slice(0, 12);
   }
 }
 

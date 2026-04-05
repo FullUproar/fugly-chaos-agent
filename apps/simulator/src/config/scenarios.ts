@@ -14,6 +14,7 @@ export interface ScenarioDefinition {
     pollIntervalMin: [number, number];
     miniGameIntervalMin: [number, number];
   };
+  aiMode?: boolean;
 }
 
 const casualBoardGame: ScenarioDefinition = {
@@ -106,12 +107,32 @@ const barNightBrawl: ScenarioDefinition = {
   },
 };
 
+const aiEnhancedParty: ScenarioDefinition = {
+  id: 'ai_enhanced_party',
+  name: 'AI-Enhanced Party Game (vs Static)',
+  description:
+    'Same as chaotic_party_game but with AI-personalized missions that reference player names, ' +
+    'recent events, and inside jokes. Compare results with chaotic_party_game to measure AI impact.',
+  playerCount: 6,
+  personaIds: ['alex', 'jade', 'pat', 'tyler', 'sam', 'marcus'],
+  gameType: 'party_game',
+  chaosComfort: 'maximum',
+  totalMinutes: 120,
+  eventFrequency: {
+    flashMissionIntervalMin: [4, 10],
+    pollIntervalMin: [6, 12],
+    miniGameIntervalMin: [10, 20],
+  },
+  aiMode: true,
+};
+
 export const SCENARIOS: Record<string, ScenarioDefinition> = {
   casual_board_game: casualBoardGame,
   chaotic_party_game: chaoticPartyGame,
   newbie_overwhelm: newbieOverwhelm,
   chill_dinner_party: chillDinnerParty,
   bar_night_brawl: barNightBrawl,
+  ai_enhanced_party: aiEnhancedParty,
 };
 
 /** Get a scenario by id. Throws on unknown id. */

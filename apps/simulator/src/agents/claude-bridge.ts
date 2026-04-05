@@ -24,6 +24,7 @@ const DEFAULT_AGENT_RESPONSE: AgentResponse = {
   wants_less_chaos: false,
   notification_feedback: 'just_right',
   overall_vibe: 'fine',
+  host_power_used: null,
 };
 
 const DEFAULT_FINAL_ASSESSMENT: FinalAssessment = {
@@ -44,6 +45,11 @@ const DEFAULT_FINAL_ASSESSMENT: FinalAssessment = {
     'The night was fine. Nothing blew my mind but nothing ruined it either. ' +
     'Would probably do it again if someone else set it up.',
   suggestions: ['Fewer events during intense game moments.'],
+  would_screenshot_moment: false,
+  would_post_on_social: false,
+  would_tell_friends_tomorrow: true,
+  felt_closer_to_group: true,
+  funniest_moment_shareable: 'Nothing stood out enough to share.',
 };
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -105,6 +111,8 @@ function validateAgentResponse(raw: Record<string, unknown>): AgentResponse {
       validVibes.includes(raw.overall_vibe as any)
         ? (raw.overall_vibe as string)
         : 'fine',
+    host_power_used:
+      typeof raw.host_power_used === 'string' ? raw.host_power_used : null,
   };
 }
 
@@ -150,6 +158,18 @@ function validateFinalAssessment(raw: Record<string, unknown>): FinalAssessment 
     suggestions: Array.isArray(raw.suggestions)
       ? raw.suggestions.filter((s): s is string => typeof s === 'string')
       : DEFAULT_FINAL_ASSESSMENT.suggestions,
+    would_screenshot_moment:
+      typeof raw.would_screenshot_moment === 'boolean' ? raw.would_screenshot_moment : false,
+    would_post_on_social:
+      typeof raw.would_post_on_social === 'boolean' ? raw.would_post_on_social : false,
+    would_tell_friends_tomorrow:
+      typeof raw.would_tell_friends_tomorrow === 'boolean' ? raw.would_tell_friends_tomorrow : true,
+    felt_closer_to_group:
+      typeof raw.felt_closer_to_group === 'boolean' ? raw.felt_closer_to_group : true,
+    funniest_moment_shareable:
+      typeof raw.funniest_moment_shareable === 'string'
+        ? raw.funniest_moment_shareable
+        : DEFAULT_FINAL_ASSESSMENT.funniest_moment_shareable,
   };
 }
 
@@ -367,6 +387,7 @@ export class ClaudeBridge {
       wants_less_chaos: n % 3 === 2,
       notification_feedback: notifs[n % notifs.length],
       overall_vibe: vibes[n % vibes.length],
+      host_power_used: null,
     };
   }
 }

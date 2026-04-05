@@ -89,4 +89,11 @@ export interface EvaluationFactors {
   wouldRecommend: number;              // 18
   wouldPayForAI: number;              // 19
   overallAssessment: number;           // 20
+
+  // Virality metrics
+  screenshotMoment: number;            // How many moments would someone screenshot/share?
+  socialMediaMention: number;           // Would agents mention this on social media?
+  nextDayStory: number;                // Would agents tell someone about this tomorrow?
+  groupBondingEffect: number;          // Did this bring the group closer?
+  memeableMoments: number;             // How many meme-worthy moments happened?
 }

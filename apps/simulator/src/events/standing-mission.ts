@@ -8,6 +8,11 @@ import type { GameState } from '../engine/game-state.js';
  *
  * Returns at most one claim per tick to avoid flooding.
  */
+/**
+ * Check whether any agent would spontaneously claim a standing mission.
+ * Only checks every 3-5 minutes (not every tick) to keep claims organic.
+ * Competitive agents (Marcus, Alex) and social agents (Jade) claim more often.
+ */
 export function checkStandingClaims(
   tick: number,
   agents: Agent[],
@@ -22,15 +27,33 @@ export function checkStandingClaims(
   // Don't allow claims during blocking activities
   if (sessionState.hasBlockingActivity) return null;
 
-  for (const agent of agents) {
+  // Only check every 3-5 minutes, not every tick.
+  // Use a deterministic hash to decide which ticks are "claim check" ticks.
+  const checkHash = simpleHash(`claim-check-${tick}`);
+  const checkInterval = 3 + (checkHash % 3); // 3, 4, or 5
+  if (tick % checkInterval !== 0) return null;
+
+  // Shuffle agent order per tick so the same agent doesn't always get first pick
+  const shuffled = [...agents].sort((a, b) => {
+    return simpleHash(`${a.id}-${tick}`) - simpleHash(`${b.id}-${tick}`);
+  });
+
+  for (const agent of shuffled) {
     // Skip distracted agents
     if (agent.isDistracted(tick)) continue;
 
     // Base probability from persona engagement with standing missions
     const baseChance = agent.persona.eventEngagement.standingMission;
 
+    // Competitive agents (high competitiveness) are more likely to claim
+    const competitiveBoost = 1.0 + (agent.persona.competitiveness / 10) * 0.5;
+
+    // Social agents claim social missions more (handled in pickMissionForAgent),
+    // but also have a general boost from socialEngagement
+    const socialBoost = 1.0 + (agent.persona.socialEngagement / 10) * 0.3;
+
     // Boost during dead time -- standing claims fit naturally in downtime
-    const deadTimeBoost = gameState.isDeadTime ? 1.5 : 0.8;
+    const deadTimeBoost = gameState.isDeadTime ? 1.3 : 1.0;
 
     // Competitive agents claim more when behind
     const otherScores = agents.filter((a) => a.id !== agent.id).map((a) => a.score);
@@ -40,10 +63,11 @@ export function checkStandingClaims(
       : 1.0;
 
     // Energy matters -- low energy agents don't bother
-    const energyFactor = agent.energy / 10;
+    const energyFactor = Math.max(0.3, agent.energy / 10);
 
-    // Overall probability per tick (per mission check)
-    const claimChance = baseChance * deadTimeBoost * behindBoost * energyFactor * 0.02;
+    // Higher per-check probability since we check less often (every 3-5 min instead of every tick).
+    // Target: roughly one claim every 5-15 minutes across the whole group.
+    const claimChance = baseChance * competitiveBoost * socialBoost * deadTimeBoost * behindBoost * energyFactor * 0.15;
 
     // Deterministic-ish: use tick + agent hash to make it reproducible
     const hash = simpleHash(`${agent.id}-${tick}`);

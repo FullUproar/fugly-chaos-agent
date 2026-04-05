@@ -42,6 +42,8 @@ export interface AgentContext {
     annoyance: number;
     dialogue: string;
   }[];
+  /** AI-personalized mode flag -- missions reference players and recent events. */
+  aiMode?: boolean;
 }
 
 export interface FinalAssessmentContext {
@@ -106,7 +108,8 @@ Respond with ONLY a valid JSON object matching this exact schema. No markdown, n
   "wants_more_chaos": <true/false whether they want MORE events right now>,
   "wants_less_chaos": <true/false whether they want FEWER events right now>,
   "notification_feedback": "too_loud" | "too_quiet" | "just_right" | "missed_it",
-  "overall_vibe": "loving_it" | "fine" | "meh" | "annoyed" | "frustrated" | "checked_out"
+  "overall_vibe": "loving_it" | "fine" | "meh" | "annoyed" | "frustrated" | "checked_out",
+  "host_power_used": null | "trigger_flash" | "call_break" | "boost_energy" | "target_player" | "skip_event"
 }`;
 
 export const FINAL_ASSESSMENT_SYSTEM_PROMPT = `You are simulating a real person reflecting on a game night that just ended. You have specific opinions, preferences, and biases.
@@ -257,8 +260,30 @@ export function buildUserPrompt(context: AgentContext): string {
         ].join('\n')
       : 'YOUR RECENT HISTORY: This is your first event tonight.';
 
+  // ── Host powers block ──
+  let hostPowerBlock = '';
+  if (persona.hostPowers && persona.hostActions) {
+    hostPowerBlock = [
+      'HOST SUPERPOWERS (you are the host -- you can use ONE of these if the situation calls for it):',
+      ...persona.hostActions.map((a) => `- ${a}`),
+      '',
+      'Would you use any host power right now? If so, set "host_power_used" to the power name and explain why in your internal_thought.',
+      'Only use a power when the group genuinely needs it (energy crashing, someone disengaged, pace too intense, etc).',
+    ].join('\n');
+  }
+
+  // ── AI mode block ──
+  let aiModeBlock = '';
+  if (context.aiMode) {
+    aiModeBlock = [
+      'NOTE: These missions were AI-generated specifically for your group based on your setup answers',
+      'and what has happened tonight. They reference your names, your inside jokes, and recent events.',
+      'React to how PERSONALIZED this feels compared to generic missions.',
+    ].join('\n');
+  }
+
   // ── Final assembly ──
-  return [
+  const blocks = [
     personaBlock,
     '',
     stateBlock,
@@ -272,9 +297,18 @@ export function buildUserPrompt(context: AgentContext): string {
     eventBlock,
     '',
     historyBlock,
-    '',
-    `How does ${persona.name} react RIGHT NOW?`,
-  ].join('\n');
+  ];
+
+  if (hostPowerBlock) {
+    blocks.push('', hostPowerBlock);
+  }
+  if (aiModeBlock) {
+    blocks.push('', aiModeBlock);
+  }
+
+  blocks.push('', `How does ${persona.name} react RIGHT NOW?`);
+
+  return blocks.join('\n');
 }
 
 // ── User prompt builder: end-of-night final assessment ──────────────────────
@@ -358,7 +392,12 @@ export function buildFinalAssessmentPrompt(ctx: FinalAssessmentContext): string 
   "biggest_complaint": "<one sentence>",
   "best_moment": "<one sentence>",
   "narrative_summary": "<3-4 sentences describing your night from your perspective>",
-  "suggestions": ["<specific improvement suggestion>", ...]
+  "suggestions": ["<specific improvement suggestion>", ...],
+  "would_screenshot_moment": <true/false - was there a moment you'd screenshot to share?>,
+  "would_post_on_social": <true/false - would you mention this on social media?>,
+  "would_tell_friends_tomorrow": <true/false - would you tell someone about this tomorrow?>,
+  "felt_closer_to_group": <true/false - did this bring the group closer?>,
+  "funniest_moment_shareable": "<describe the moment you'd share with someone who wasn't there>"
 }`;
 
   return [

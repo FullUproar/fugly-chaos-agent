@@ -21,6 +21,8 @@ export interface AgentPersona {
   votingTendency: 'generous' | 'skeptical' | 'strategic' | 'random';
   chaosComfort: 'chill' | 'moderate' | 'maximum';
   socialStyle: 'observer' | 'participant' | 'instigator';
+  hostPowers?: boolean;
+  hostActions?: string[];
 }
 
 const marcus: AgentPersona = {
@@ -224,6 +226,14 @@ const pat: AgentPersona = {
   votingTendency: 'strategic',
   chaosComfort: 'moderate',
   socialStyle: 'participant',
+  hostPowers: true,
+  hostActions: [
+    'trigger_flash',    // Force a flash mission immediately
+    'call_break',       // Pause chaos for 5 minutes
+    'boost_energy',     // Re-energize the group
+    'target_player',    // Direct next event at a specific player
+    'skip_event',       // Cancel the current event
+  ],
 };
 
 const river: AgentPersona = {

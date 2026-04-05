@@ -178,9 +178,9 @@ export class Timeline {
       // 1. Advance game state
       this.gameState.advance(tick);
 
-      // 2. Apply gradual energy decay to all agents
+      // 2. Apply gradual energy decay to all agents (very gradual -- good nights end at 4-6/10)
       for (const agent of this.pool.getAllAgents()) {
-        agent.energy = Math.max(1, agent.energy - 0.05);
+        agent.energy = Math.max(1, agent.energy - 0.02);
         agent.recordEnergy();
       }
 
@@ -296,6 +296,29 @@ export class Timeline {
         }
       }
 
+      // 4b. Host power check -- every 20-30 minutes, Pat may use a host power
+      if (this.shouldCheckHostPower(tick)) {
+        const hostAction = this.evaluateHostPower(tick);
+        if (hostAction) {
+          const hostEvent = this.createEvent(tick, 'host_action' as SimEvent['type'], {
+            title: `Host Power: ${hostAction.action}`,
+            description: hostAction.description,
+          });
+          this.events.push(hostEvent);
+          this.sessionState.addEvent({
+            tick,
+            type: 'host_action',
+            title: hostEvent.title,
+            reactions: new Map(),
+          });
+          lastEventTick = tick;
+
+          if (this.config.verbose) {
+            console.log(`  [${tick}min] HOST_POWER: ${hostAction.action} -- ${hostAction.description}`);
+          }
+        }
+      }
+
       // 5. Record metrics for this tick
       const currentEvent = scheduled
         ? this.events[this.events.length - 1]
@@ -335,6 +358,80 @@ export class Timeline {
     console.log(`\n    Simulation complete. ${this.events.length} events, ${apiStats.totalCalls} API calls.`);
 
     return { events: this.events, metrics, assessments, apiStats };
+  }
+
+  // ── Host power helpers ─────────────────────────────────────────────────
+
+  private lastHostPowerTick: number = -Infinity;
+
+  /** Check host powers every 20-30 minutes. */
+  private shouldCheckHostPower(tick: number): boolean {
+    const interval = 20 + Math.floor(Math.random() * 11); // 20-30
+    return tick - this.lastHostPowerTick >= interval;
+  }
+
+  /** Evaluate whether Pat would use a host power based on group state. */
+  private evaluateHostPower(tick: number): { action: string; description: string } | null {
+    const pat = this.pool.getAllAgents().find((a) => a.persona.hostPowers);
+    if (!pat) return null;
+
+    const allAgents = this.pool.getAllAgents();
+    const avgEnergy = allAgents.reduce((sum, a) => sum + a.energy, 0) / allAgents.length;
+
+    // Find the most annoyed agent
+    const mostAnnoyed = allAgents.reduce((worst, a) => {
+      const annoyance = a.lastAnnoyance ?? 0;
+      return annoyance > (worst.lastAnnoyance ?? 0) ? a : worst;
+    }, allAgents[0]);
+
+    // Find quiet agents (observers with low engagement)
+    const quietAgents = allAgents.filter(
+      (a) => a.persona.socialStyle === 'observer' && a.totalEngaged < (this.events.length * 0.3),
+    );
+
+    this.lastHostPowerTick = tick;
+
+    // If average energy < 4: call a break
+    if (avgEnergy < 4) {
+      // Boost everyone's energy by 2-3
+      for (const agent of allAgents) {
+        agent.energy = Math.min(10, agent.energy + 2.5);
+      }
+      return {
+        action: 'call_break',
+        description: `Pat calls a 5-minute break. "Everyone grab a drink, stretch your legs. We're coming back strong." Group energy was ${avgEnergy.toFixed(1)}/10.`,
+      };
+    }
+
+    // If someone is very annoyed (> 7): call a break or skip
+    if ((mostAnnoyed.lastAnnoyance ?? 0) > 7) {
+      for (const agent of allAgents) {
+        agent.energy = Math.min(10, agent.energy + 2);
+      }
+      return {
+        action: 'call_break',
+        description: `Pat notices ${mostAnnoyed.persona.name} is getting frustrated. "Hey let's take five, I need to refill snacks anyway."`,
+      };
+    }
+
+    // If group energy is dropping: trigger a flash to re-energize
+    if (avgEnergy < 6 && avgEnergy > 4) {
+      return {
+        action: 'boost_energy',
+        description: `Pat senses the energy dipping. "Alright, who wants to do something fun? I've got an idea..." Pat amps up the group with enthusiasm.`,
+      };
+    }
+
+    // If someone is being quiet: target them
+    if (quietAgents.length > 0) {
+      const target = quietAgents[Math.floor(Math.random() * quietAgents.length)];
+      return {
+        action: 'target_player',
+        description: `Pat turns to ${target.persona.name}: "Hey, you've been quiet -- what do you think? Pull them into the next event."`,
+      };
+    }
+
+    return null;
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────
@@ -437,6 +534,7 @@ export class Timeline {
       // Merge in event-specific fields
       const context: AgentContext = {
         ...contextBase,
+        aiMode: this.config.scenario.aiMode ?? false,
         event: {
           type: event.type,
           title: event.title,
@@ -471,6 +569,17 @@ export class Timeline {
             type: reaction.would_send_signal,
             tick,
           });
+        }
+
+        // Handle host power used via Claude response
+        if (reaction.host_power_used === 'call_break') {
+          // Break restores energy for everyone
+          for (const a of this.pool.getAllAgents()) {
+            a.energy = Math.min(10, a.energy + 2.5);
+          }
+          if (this.config.verbose) {
+            console.log(`  [${tick}min] HOST_POWER (via response): ${agentId} called a break`);
+          }
         }
       }
     }

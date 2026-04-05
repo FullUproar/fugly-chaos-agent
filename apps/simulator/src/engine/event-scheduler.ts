@@ -133,6 +133,14 @@ export class EventScheduler {
   private lastMiniGameTick: number = -Infinity;
   private readonly config: ScenarioDefinition['eventFrequency'];
 
+  /**
+   * Per-event-type cooldowns are rolled ONCE when an event fires,
+   * so the next fire time is deterministic until it actually fires.
+   */
+  private nextFlashEligible: number;
+  private nextPollEligible: number;
+  private nextMiniGameEligible: number;
+
   // Track used indices to avoid repeats within a session.
   private usedFlashIndices: Set<number> = new Set();
   private usedPollIndices: Set<number> = new Set();
@@ -140,11 +148,21 @@ export class EventScheduler {
 
   constructor(config: ScenarioDefinition['eventFrequency']) {
     this.config = config;
+
+    // First events should fire early (within 5-8 minutes).
+    // Stagger them so they don't all fire on the same tick.
+    this.nextFlashEligible = 5 + Math.floor(Math.random() * 3);    // 5-7
+    this.nextPollEligible = 6 + Math.floor(Math.random() * 4);     // 6-9
+    this.nextMiniGameEligible = 8 + Math.floor(Math.random() * 5); // 8-12
   }
 
   /**
    * Evaluate whether an event should fire at this tick.
    * Returns null if no event should fire, or a ScheduledEvent with full data.
+   *
+   * Core fix: each event type has a pre-rolled "next eligible" tick.
+   * Once that tick arrives, the event is a candidate. After firing,
+   * the next eligible tick is rolled from the config interval.
    */
   shouldFireEvent(
     tick: number,
@@ -157,45 +175,47 @@ export class EventScheduler {
     // 2. Don't fire if there's already an active flash mission.
     if (sessionState.activeFlash) return null;
 
-    // 3. Suppress events when disruption tolerance is very low.
+    // 3. Disruption tolerance only reduces frequency at very low levels (< 3),
+    //    not blocks entirely. 50% chance to skip this tick when tolerance < 3.
     if (gameState.disruptionTolerance < 3) {
-      // Small chance to still fire during dead time.
-      if (!gameState.isDeadTime) return null;
+      if (Math.random() < 0.5) return null;
     }
 
-    // 4. Check if a shake_it_up signal was sent recently -- halve cooldowns.
+    // 4. Check if a shake_it_up signal was sent recently -- halve remaining cooldowns.
     const shakeItUp = sessionState.hasRecentSignal('shake_it_up', tick, 3);
-    const cooldownMultiplier = shakeItUp ? 0.5 : 1.0;
+    if (shakeItUp) {
+      // Bring eligible times closer to now
+      const pullForward = (eligible: number) => Math.min(eligible, tick + 1);
+      this.nextFlashEligible = pullForward(this.nextFlashEligible);
+      this.nextPollEligible = pullForward(this.nextPollEligible);
+      this.nextMiniGameEligible = pullForward(this.nextMiniGameEligible);
+    }
 
-    // 5. Build candidate list of event types that have passed their cooldown.
+    // 5. Build candidate list of event types that have reached their eligible tick.
+    //    Target mix: ~50% flash, ~30% poll, ~20% mini-game
     const candidates: Array<{ type: ScheduledEventType; weight: number }> = [];
 
-    const flashCooldown = this.randomInRange(this.config.flashMissionIntervalMin) * cooldownMultiplier;
-    if (tick - this.lastFlashTick >= flashCooldown) {
-      // Weight: more flashes in mid-late phases.
+    if (tick >= this.nextFlashEligible) {
       const phaseWeight = this.phaseWeight(gameState.currentPhase.name, 'flash');
-      candidates.push({ type: 'flash_mission', weight: phaseWeight });
+      candidates.push({ type: 'flash_mission', weight: 5.0 * phaseWeight });
     }
 
-    const pollCooldown = this.randomInRange(this.config.pollIntervalMin) * cooldownMultiplier;
-    if (tick - this.lastPollTick >= pollCooldown) {
-      // Weight: more polls in early-mid phases.
+    if (tick >= this.nextPollEligible) {
       const phaseWeight = this.phaseWeight(gameState.currentPhase.name, 'poll');
-      candidates.push({ type: 'poll', weight: phaseWeight });
+      candidates.push({ type: 'poll', weight: 3.0 * phaseWeight });
     }
 
-    const miniGameCooldown = this.randomInRange(this.config.miniGameIntervalMin) * cooldownMultiplier;
-    if (tick - this.lastMiniGameTick >= miniGameCooldown) {
-      // Weight: more mini-games in mid phase.
+    if (tick >= this.nextMiniGameEligible) {
       const phaseWeight = this.phaseWeight(gameState.currentPhase.name, 'mini_game');
-      candidates.push({ type: 'mini_game', weight: phaseWeight });
+      candidates.push({ type: 'mini_game', weight: 2.0 * phaseWeight });
     }
 
     if (candidates.length === 0) return null;
 
-    // 6. Prefer firing during dead time -- boost all weights.
+    // 6. Dead time is a BONUS -- boost weights slightly, but events can
+    //    fire during active play too.
     if (gameState.isDeadTime) {
-      for (const c of candidates) c.weight *= 1.5;
+      for (const c of candidates) c.weight *= 1.3;
     }
 
     // 7. Weighted random pick.
@@ -210,6 +230,7 @@ export class EventScheduler {
         const mission = this.pickFlashMission(playerNames);
         if (!mission) return null;
         this.lastFlashTick = tick;
+        this.nextFlashEligible = tick + this.randomInRange(this.config.flashMissionIntervalMin);
         return {
           type: 'flash_mission',
           data: {
@@ -225,6 +246,7 @@ export class EventScheduler {
         const poll = this.pickPoll(playerNames);
         if (!poll) return null;
         this.lastPollTick = tick;
+        this.nextPollEligible = tick + this.randomInRange(this.config.pollIntervalMin);
         return {
           type: 'poll',
           data: {
@@ -240,6 +262,7 @@ export class EventScheduler {
         const miniGame = this.pickMiniGame(playerNames);
         if (!miniGame) return null;
         this.lastMiniGameTick = tick;
+        this.nextMiniGameEligible = tick + this.randomInRange(this.config.miniGameIntervalMin);
         return {
           type: 'mini_game',
           data: {

@@ -25,6 +25,7 @@ export class Agent {
   score: number = 0;
   history: AgentHistoryEntry[] = [];
   lastOverallVibe: string = 'fine';
+  lastAnnoyance: number = 0;
   signalsSent: number = 0;
   totalEngaged: number = 0;
   totalIgnored: number = 0;
@@ -72,6 +73,7 @@ export class Agent {
     }
 
     this.lastOverallVibe = reaction.overall_vibe;
+    this.lastAnnoyance = reaction.annoyance;
     this._lastEventTick = tick;
 
     // Track event type counts

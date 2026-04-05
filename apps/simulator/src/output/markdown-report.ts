@@ -165,6 +165,39 @@ export function generateMarkdownReport(
     lines.push(`| ${i + 1} | ${label} | ${value}/10 ${bar} |`);
   });
 
+  // ── Virality Potential ──
+  lines.push('');
+  lines.push('## Virality Potential');
+  lines.push('');
+  lines.push('How likely is this game night to generate organic word-of-mouth?');
+  lines.push('');
+  lines.push('| Metric | Score |');
+  lines.push('|--------|-------|');
+  lines.push(`| Screenshot Moments | ${f.screenshotMoment}/10 ${scoreBar(f.screenshotMoment)} |`);
+  lines.push(`| Social Media Mention | ${f.socialMediaMention}/10 ${scoreBar(f.socialMediaMention)} |`);
+  lines.push(`| Next-Day Story | ${f.nextDayStory}/10 ${scoreBar(f.nextDayStory)} |`);
+  lines.push(`| Group Bonding Effect | ${f.groupBondingEffect}/10 ${scoreBar(f.groupBondingEffect)} |`);
+  lines.push(`| Memeable Moments | ${f.memeableMoments}/10 ${scoreBar(f.memeableMoments)} |`);
+
+  // Collect shareable moments from assessments
+  const shareableMoments: string[] = [];
+  for (const [, assessment] of assessments) {
+    if (
+      assessment.funniest_moment_shareable &&
+      assessment.funniest_moment_shareable.length > 20 &&
+      !assessment.funniest_moment_shareable.toLowerCase().includes('nothing')
+    ) {
+      shareableMoments.push(assessment.funniest_moment_shareable);
+    }
+  }
+  if (shareableMoments.length > 0) {
+    lines.push('');
+    lines.push('**Moments agents would share:**');
+    for (const moment of shareableMoments.slice(0, 5)) {
+      lines.push(`- "${moment}"`);
+    }
+  }
+
   // ── Recommendations ��─
   lines.push('');
   lines.push('## Recommendations');
