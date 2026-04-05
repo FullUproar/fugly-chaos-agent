@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Modal, Animated, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Animated, ActivityIndicator, StyleSheet } from 'react-native';
 import type { Mission } from '@chaos-agent/shared';
 import { HourglassTimer } from './HourglassTimer';
 import { colors } from '@/theme/colors';
@@ -8,7 +8,7 @@ import { playSound } from '@/lib/sounds';
 
 interface Props {
   mission: Mission;
-  onClaim: () => void;
+  onClaim: () => unknown | Promise<unknown>;
   onDismiss: () => void;
 }
 
@@ -21,6 +21,8 @@ const FLASH_TYPE_LABELS: Record<string, string> = {
 export function FlashMissionOverlay({ mission, onClaim, onDismiss }: Props) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [expired, setExpired] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
   const progressAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -98,9 +100,32 @@ export function FlashMissionOverlay({ mission, onClaim, onDismiss }: Props) {
           {/* Actions */}
           <View style={styles.actions}>
             {!expired && !isClaimed && mission.flash_type !== 'group' && (
-              <TouchableOpacity style={styles.claimButton} onPress={onClaim} activeOpacity={0.7}>
-                <Text style={styles.claimButtonText}>CLAIM</Text>
+              <TouchableOpacity
+                style={[styles.claimButton, claiming && styles.claimButtonDisabled]}
+                onPress={async () => {
+                  if (claiming) return;
+                  setClaiming(true);
+                  setClaimError(null);
+                  try {
+                    await onClaim();
+                  } catch (e) {
+                    setClaimError((e as Error).message || 'Claim failed');
+                  } finally {
+                    setClaiming(false);
+                  }
+                }}
+                disabled={claiming}
+                activeOpacity={0.7}
+              >
+                {claiming ? (
+                  <ActivityIndicator color={colors.accentText} size="small" />
+                ) : (
+                  <Text style={styles.claimButtonText}>CLAIM</Text>
+                )}
               </TouchableOpacity>
+            )}
+            {claimError && (
+              <Text style={styles.claimErrorText}>{claimError}</Text>
             )}
             {isClaimed && (
               <Text style={styles.claimedText}>CLAIMED — PENDING VOTE</Text>
@@ -176,7 +201,11 @@ const styles = StyleSheet.create({
     minHeight: 56,
     justifyContent: 'center',
   },
+  claimButtonDisabled: {
+    opacity: 0.6,
+  },
   claimButtonText: { fontSize: 20, fontWeight: '900', color: colors.accentText, letterSpacing: 3 },
+  claimErrorText: { fontSize: 13, fontWeight: '600', color: colors.error, textAlign: 'center', marginTop: 4 },
   claimedText: { fontSize: 15, fontWeight: '700', color: colors.warning, textAlign: 'center', letterSpacing: 1 },
   dismissButton: {
     paddingVertical: 14,

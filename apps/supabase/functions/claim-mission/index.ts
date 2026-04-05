@@ -120,18 +120,21 @@ Deno.serve(async (req) => {
     }
 
     // Check if this player already has a pending/challenged claim in this room
-    const { data: pendingClaims } = await supabase
-      .from('claims')
-      .select('id, missions!inner(room_id)')
-      .eq('room_player_id', roomPlayer.id)
-      .in('status', ['PENDING', 'CHALLENGED'])
-      .eq('missions.room_id', mission.room_id);
+    // Flash missions bypass this check — they're time-sensitive and urgent
+    if (mission.type === 'standing') {
+      const { data: pendingClaims } = await supabase
+        .from('claims')
+        .select('id, missions!inner(room_id)')
+        .eq('room_player_id', roomPlayer.id)
+        .in('status', ['PENDING', 'CHALLENGED'])
+        .eq('missions.room_id', mission.room_id);
 
-    if (pendingClaims && pendingClaims.length > 0) {
-      return new Response(JSON.stringify({ error: 'You have a pending claim — wait for it to resolve' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      if (pendingClaims && pendingClaims.length > 0) {
+        return new Response(JSON.stringify({ error: 'You have a pending claim — wait for it to resolve' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     // --- STANDING MISSIONS ---

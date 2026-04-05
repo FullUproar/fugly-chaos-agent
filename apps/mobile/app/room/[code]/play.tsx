@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, ScrollView,
-  ActivityIndicator, Animated, StyleSheet,
+  ActivityIndicator, Animated, StyleSheet, BackHandler, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -40,7 +40,7 @@ export default function PlayScreen() {
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
   const {
-    roomId, isHost, room, standingMissions, activeFlash, activePoll, myPollVote,
+    roomId, isHost, room, standingMissions, totalStandingCount, activeFlash, activePoll, myPollVote,
     activeClaims, allClaims, scores, roomPlayerId, players,
     flashDismissed, pollDismissed, miniGameDismissed,
     dismissFlash, dismissPoll, dismissMiniGame,
@@ -117,6 +117,18 @@ export default function PlayScreen() {
   }, [gameContext?.autoBreakEnabled, gameContext?.autoBreakAfterMinutes, breakSuggested]);
   usePolling(roomId);
 
+  // Intercept Android back button
+  useEffect(() => {
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      Alert.alert('Leave game?', 'You can rejoin with the room code, but your session will be interrupted.', [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Leave', style: 'destructive', onPress: () => router.back() },
+      ]);
+      return true; // prevent default back
+    });
+    return () => handler.remove();
+  }, []);
+
   useEffect(() => {
     if (room?.status === 'ENDED') {
       router.replace(`/room/${code}/results`);
@@ -175,10 +187,9 @@ export default function PlayScreen() {
 
   const handleClaimFlash = async () => {
     if (!activeFlash) return;
-    try {
-      await api.claimMission({ mission_id: activeFlash.id });
-      showClaimToast(activeFlash.points);
-    } catch { /* polling */ }
+    const result = await api.claimMission({ mission_id: activeFlash.id });
+    showClaimToast(activeFlash.points);
+    return result;
   };
 
   const handlePollVote = async (answer: string) => {
@@ -337,6 +348,7 @@ export default function PlayScreen() {
       {activeTab === 'missions' && (
         <StandingMissionsTab
           missions={standingMissions}
+          totalCount={totalStandingCount}
           onClaimed={showClaimToast}
           bottomPad={bottomPad}
           hasPendingClaim={activeClaims.some((c) => c.claim.room_player_id === roomPlayerId)}
@@ -474,8 +486,9 @@ export default function PlayScreen() {
 }
 
 // --- Standing Missions Tab ---
-function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, activeClaims, myRoomPlayerId, localVotes, onVoted }: {
+function StandingMissionsTab({ missions, totalCount, onClaimed, bottomPad, hasPendingClaim, activeClaims, myRoomPlayerId, localVotes, onVoted }: {
   missions: Mission[];
+  totalCount: number;
   onClaimed: (pts: number) => void;
   bottomPad: number;
   hasPendingClaim: boolean;
@@ -516,16 +529,18 @@ function StandingMissionsTab({ missions, onClaimed, bottomPad, hasPendingClaim, 
   if (missions.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <ActivityIndicator color={colors.textSecondary} />
-        <Text style={styles.emptyText}>Loading missions...</Text>
+        <Text style={styles.quietTitle}>All quiet... for now.</Text>
+        <Text style={styles.quietSubtext}>Missions surface when Fugly feels like it.</Text>
       </View>
     );
   }
 
   return (
     <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad }]}>
-      <Text style={styles.sectionHeader}>ACTIVE RULES ({missions.length})</Text>
-      <Text style={styles.sectionSubtext}>Tap a rule to see details and claim</Text>
+      <Text style={styles.sectionHeader}>ACTIVE MISSIONS</Text>
+      <Text style={styles.sectionSubtext}>
+        {missions.length} of {totalCount} missions active {totalCount > missions.length ? '— more incoming' : ''}
+      </Text>
 
       {missions.map((item) => {
         const isExpanded = expanded === item.id;
@@ -873,6 +888,8 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 48 },
   emptyText: { color: colors.textSecondary, fontSize: 18, marginTop: 12 },
   emptySubtext: { color: colors.textMuted, fontSize: 15, marginTop: 4, textAlign: 'center' },
+  quietTitle: { color: colors.textSecondary, fontSize: 22, fontWeight: '800', marginBottom: 8, letterSpacing: 1 },
+  quietSubtext: { color: colors.textMuted, fontSize: 15, textAlign: 'center' },
 
   // Section headers
   sectionHeader: { fontSize: 13, fontWeight: '900', color: colors.textMuted, letterSpacing: 2, marginBottom: 2 },

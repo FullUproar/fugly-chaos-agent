@@ -126,6 +126,81 @@ Deno.serve(async (req) => {
       recentSlowSignals = signalList.filter(s => s.signal_type === 'slow_your_roll').length;
     }
 
+    // --- STANDING MISSION ROTATION ---
+    // Reveal new standing missions if fewer than 2 are active, with cooldowns
+    const { data: revealedStanding } = await supabase
+      .from('missions')
+      .select('id, created_at, status')
+      .eq('room_id', room_id)
+      .eq('type', 'standing')
+      .eq('status', 'REVEALED');
+
+    const { data: hiddenStanding } = await supabase
+      .from('missions')
+      .select('id')
+      .eq('room_id', room_id)
+      .eq('type', 'standing')
+      .eq('status', 'HIDDEN');
+
+    const revealedCount = revealedStanding?.length ?? 0;
+    const hiddenCount = hiddenStanding?.length ?? 0;
+
+    // Expire stale standing missions (REVEALED for 30+ min with no claims)
+    if (revealedStanding && revealedStanding.length > 0) {
+      const thirtyMinAgo = new Date(now - 30 * 60_000).toISOString();
+      const staleIds: string[] = [];
+
+      for (const m of revealedStanding) {
+        if (m.created_at && m.created_at < thirtyMinAgo) {
+          // Check if this mission has any claims at all
+          const { count: claimCount } = await supabase
+            .from('claims')
+            .select('id', { count: 'exact', head: true })
+            .eq('mission_id', m.id);
+
+          if ((claimCount ?? 0) === 0) {
+            staleIds.push(m.id);
+          }
+        }
+      }
+
+      if (staleIds.length > 0) {
+        await supabase
+          .from('missions')
+          .update({ status: 'EXPIRED' })
+          .in('id', staleIds);
+      }
+    }
+
+    // Reveal a new standing mission if we have fewer than 2 revealed and hidden ones available
+    // Cooldown: at least 10 minutes since the last reveal (use most recent REVEALED mission's created_at)
+    if (revealedCount < 2 && hiddenCount > 0) {
+      const lastRevealTime = revealedStanding && revealedStanding.length > 0
+        ? Math.max(...revealedStanding.map(m => new Date(m.created_at).getTime()))
+        : 0;
+      const timeSinceLastReveal = now - lastRevealTime;
+      const TEN_MINUTES = 10 * 60_000;
+
+      if (timeSinceLastReveal >= TEN_MINUTES || revealedCount === 0) {
+        // Pick a random hidden standing mission to reveal
+        const randomIndex = Math.floor(Math.random() * hiddenStanding!.length);
+        const missionToReveal = hiddenStanding![randomIndex];
+
+        await supabase
+          .from('missions')
+          .update({ status: 'REVEALED', created_at: new Date().toISOString() })
+          .eq('id', missionToReveal.id);
+
+        // Log as a new_mission event in the room's messages
+        await supabase.from('messages').insert({
+          room_id: room_id,
+          sender_id: null,
+          message_type: 'system',
+          content: 'A new mission has surfaced...',
+        });
+      }
+    }
+
     // 2. Check time since last flash mission
     let flashCandidate = false;
     let lastFlashTime = room.started_at ? new Date(room.started_at).getTime() : now;

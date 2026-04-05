@@ -26,6 +26,7 @@ interface SessionState {
   room: Room | null;
   players: RoomPlayer[];
   standingMissions: Mission[];
+  totalStandingCount: number;
   activeFlash: Mission | null;
   activePoll: (Poll & { votes?: Array<{ room_player_id: string; answer: string }> }) | null;
   myPollVote: string | null;
@@ -70,6 +71,7 @@ const initialState = {
   room: null,
   players: [],
   standingMissions: [],
+  totalStandingCount: 0,
   activeFlash: null,
   activePoll: null,
   myPollVote: null,
@@ -110,6 +112,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       room: state.room,
       players: state.players,
       standingMissions: state.standing_missions,
+      totalStandingCount: (state as any).total_standing_count ?? prev.totalStandingCount,
       activeFlash: state.active_flash,
       activePoll: state.active_poll,
       myPollVote: state.my_poll_vote,

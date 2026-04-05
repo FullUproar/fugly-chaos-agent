@@ -137,8 +137,8 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       supabase.from('rooms').select('*').eq('id', room_id).single(),
       supabase.from('room_players').select('*').eq('room_id', room_id).order('joined_at'),
-      // Standing missions (all, visible to everyone)
-      supabase.from('missions').select('*').eq('room_id', room_id).eq('type', 'standing'),
+      // Standing missions (only REVEALED ones — hidden missions rotate in via auto-schedule)
+      supabase.from('missions').select('*').eq('room_id', room_id).eq('type', 'standing').eq('status', 'REVEALED'),
       // Active flash mission (unexpired, type=flash, status=REVEALED or CLAIMED)
       supabase.from('missions').select('*').eq('room_id', room_id).eq('type', 'flash').in('status', ['REVEALED', 'CLAIMED']).order('created_at', { ascending: false }).limit(1),
       // Active poll
@@ -284,10 +284,19 @@ Deno.serve(async (req) => {
       flashPointMultiplier: profile.flashPointMultiplier,
     };
 
+    // Count total standing missions (including HIDDEN) for the UI counter
+    const { count: totalStandingCount } = await supabase
+      .from('missions')
+      .select('id', { count: 'exact', head: true })
+      .eq('room_id', room_id)
+      .eq('type', 'standing')
+      .in('status', ['REVEALED', 'HIDDEN']);
+
     return new Response(JSON.stringify({
       room: roomResult.data,
       players,
       standing_missions: standingResult.data ?? [],
+      total_standing_count: totalStandingCount ?? 0,
       active_flash: activeFlash,
       active_poll: activePoll,
       my_poll_vote: myPollVote,

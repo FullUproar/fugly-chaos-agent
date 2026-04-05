@@ -262,7 +262,7 @@ Generate missions that feel personal to THIS group. Reference player names, insi
       difficulty: m.points <= 5 ? 1 : m.points <= 10 ? 2 : 3,
       points: Math.min(Math.max(m.points, 5), 25), // Clamp 5-25
       category: m.category,
-      status: m.type === 'standing' ? 'REVEALED' : 'HIDDEN', // Flash missions stay hidden until triggered
+      status: 'HIDDEN', // All missions start hidden; standing ones get selectively revealed
       type: m.type,
       flash_type: m.flash_type ?? null,
       expires_at: null,
@@ -272,10 +272,27 @@ Generate missions that feel personal to THIS group. Reference player names, insi
     };
   });
 
-  // Insert standing missions immediately
+  // Insert standing missions as HIDDEN
   const standingMissions = missionRows.filter(m => m.type === 'standing');
   if (standingMissions.length > 0) {
     await supabase.from('missions').insert(standingMissions);
+
+    // Reveal 1-2 standing missions at session start
+    const revealCount = Math.random() < 0.5 ? 1 : 2;
+    const { data: hiddenStanding } = await supabase
+      .from('missions')
+      .select('id')
+      .eq('room_id', roomId)
+      .eq('type', 'standing')
+      .eq('status', 'HIDDEN')
+      .limit(revealCount);
+
+    if (hiddenStanding && hiddenStanding.length > 0) {
+      await supabase
+        .from('missions')
+        .update({ status: 'REVEALED' })
+        .in('id', hiddenStanding.map(m => m.id));
+    }
   }
 
   // Insert flash missions as HIDDEN (will be revealed by trigger-event)

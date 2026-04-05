@@ -54,6 +54,7 @@ export interface RoomStateResponse {
   room: Room;
   players: RoomPlayer[];
   standing_missions: Mission[];
+  total_standing_count: number;
   active_flash: Mission | null;
   active_poll: (Poll & { votes?: Array<{ room_player_id: string; answer: string }> }) | null;
   my_poll_vote: string | null;

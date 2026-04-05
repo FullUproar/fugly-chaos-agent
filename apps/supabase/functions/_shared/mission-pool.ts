@@ -123,6 +123,7 @@ export async function generateStandingMissions(
     : STANDING_POOL;
   const selected = pickRandom(pool, count);
 
+  // Generate all missions as HIDDEN, then reveal 1-2 at session start
   const missions = selected.map((t) => ({
     room_id: roomId,
     room_player_id: null,
@@ -131,7 +132,7 @@ export async function generateStandingMissions(
     difficulty: t.points <= 5 ? 1 : t.points <= 10 ? 2 : 3,
     points: t.points,
     category: t.category,
-    status: 'REVEALED',
+    status: 'HIDDEN',
     type: 'standing',
     flash_type: null,
     expires_at: null,
@@ -140,6 +141,23 @@ export async function generateStandingMissions(
   }));
 
   await supabase.from('missions').insert(missions);
+
+  // Reveal 1-2 missions immediately so there's something to play with
+  const revealCount = Math.random() < 0.5 ? 1 : 2;
+  const { data: hiddenMissions } = await supabase
+    .from('missions')
+    .select('id')
+    .eq('room_id', roomId)
+    .eq('type', 'standing')
+    .eq('status', 'HIDDEN')
+    .limit(revealCount);
+
+  if (hiddenMissions && hiddenMissions.length > 0) {
+    await supabase
+      .from('missions')
+      .update({ status: 'REVEALED' })
+      .in('id', hiddenMissions.map((m) => m.id));
+  }
 }
 
 export async function generateFlashMission(
