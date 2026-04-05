@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView, Modal,
-  ActivityIndicator, StyleSheet,
+  ActivityIndicator, StyleSheet, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GAME_TYPE_OPTIONS } from '@chaos-agent/shared';
 import type { GameType } from '@chaos-agent/shared';
@@ -17,10 +17,14 @@ import { colors } from '@/theme/colors';
 const NICKNAME_KEY = 'chaos_agent_nickname';
 
 export default function CreateRoomScreen() {
-  const [gameType, setGameType] = useState<GameType>('party_game');
+  const { speed } = useLocalSearchParams<{ speed?: string }>();
+  const isSpeedMode = speed === '1';
+
+  const [gameType, setGameType] = useState<GameType>(isSpeedMode ? 'party_game' : 'party_game');
   const [gameName, setGameName] = useState('');
   const [roomName, setRoomName] = useState('');
   const [nickname, setNickname] = useState('');
+  const [partyMode, setPartyMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -54,6 +58,8 @@ export default function CreateRoomScreen() {
         game_name: gameName || undefined,
         room_name: roomName.trim() || undefined,
         nickname: nickname.trim(),
+        partyMode: partyMode || undefined,
+        speedMode: isSpeedMode || undefined,
       });
       setIdentity(playerId, res.room_player_id, res.room_id, nickname.trim(), true);
       router.replace(`/room/${res.code}/lobby`);
@@ -81,62 +87,90 @@ export default function CreateRoomScreen() {
 
       <Text style={styles.heading}>What are you playing?</Text>
 
-      {/* Game type dropdown picker */}
-      <Text style={styles.label}>GAME TYPE</Text>
-      <TouchableOpacity
-        style={styles.pickerButton}
-        onPress={() => setPickerOpen(true)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.pickerButtonInner}>
-          <View style={styles.pickerTextWrap}>
-            <Text style={styles.pickerSelectedLabel}>{selectedOption.label}</Text>
-            <Text style={styles.pickerSelectedDesc}>{selectedOption.description}</Text>
-          </View>
-          <Text style={styles.pickerChevron}>{'\u25BC'}</Text>
+      {/* Speed Round badge */}
+      {isSpeedMode && (
+        <View style={styles.speedBadge}>
+          <Text style={styles.speedBadgeText}>{'\u26A1'} 30 MINUTE BLITZ</Text>
+          <Text style={styles.speedBadgeSub}>Max chaos, shorter timers, all gas no brakes</Text>
         </View>
-      </TouchableOpacity>
+      )}
 
-      <Modal
-        visible={pickerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPickerOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.pickerOverlay}
-          activeOpacity={1}
-          onPress={() => setPickerOpen(false)}
-        >
-          <View style={styles.pickerModal}>
-            <Text style={styles.pickerModalTitle}>Select Game Type</Text>
-            {GAME_TYPE_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  styles.pickerOption,
-                  gameType === opt.value && styles.pickerOptionSelected,
-                ]}
-                onPress={() => {
-                  setGameType(opt.value);
-                  setPickerOpen(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.pickerOptionLabel,
-                    gameType === opt.value && styles.pickerOptionLabelSelected,
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-                <Text style={styles.pickerOptionDesc}>{opt.description}</Text>
-              </TouchableOpacity>
-            ))}
+      {/* Party Mode toggle */}
+      {!isSpeedMode && (
+        <View style={[styles.partyToggleRow, partyMode && styles.partyToggleRowActive]}>
+          <View style={styles.partyToggleText}>
+            <Text style={styles.partyToggleLabel}>{'\uD83C\uDF89'} PARTY MODE</Text>
+            <Text style={styles.partyToggleSub}>More chaos, shorter timers, bigger rewards</Text>
           </View>
-        </TouchableOpacity>
-      </Modal>
+          <Switch
+            value={partyMode}
+            onValueChange={setPartyMode}
+            trackColor={{ false: colors.surfaceBorder, true: colors.accent }}
+            thumbColor={partyMode ? colors.highlight : colors.textMuted}
+          />
+        </View>
+      )}
+
+      {/* Game type dropdown picker (hidden in speed mode) */}
+      {!isSpeedMode && (
+        <>
+          <Text style={styles.label}>GAME TYPE</Text>
+          <TouchableOpacity
+            style={styles.pickerButton}
+            onPress={() => setPickerOpen(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.pickerButtonInner}>
+              <View style={styles.pickerTextWrap}>
+                <Text style={styles.pickerSelectedLabel}>{selectedOption.label}</Text>
+                <Text style={styles.pickerSelectedDesc}>{selectedOption.description}</Text>
+              </View>
+              <Text style={styles.pickerChevron}>{'\u25BC'}</Text>
+            </View>
+          </TouchableOpacity>
+
+          <Modal
+            visible={pickerOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setPickerOpen(false)}
+          >
+            <TouchableOpacity
+              style={styles.pickerOverlay}
+              activeOpacity={1}
+              onPress={() => setPickerOpen(false)}
+            >
+              <View style={styles.pickerModal}>
+                <Text style={styles.pickerModalTitle}>Select Game Type</Text>
+                {GAME_TYPE_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.pickerOption,
+                      gameType === opt.value && styles.pickerOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setGameType(opt.value);
+                      setPickerOpen(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.pickerOptionLabel,
+                        gameType === opt.value && styles.pickerOptionLabelSelected,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                    <Text style={styles.pickerOptionDesc}>{opt.description}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        </>
+      )}
 
       <TextInput
         style={styles.input}
@@ -237,6 +271,38 @@ const styles = StyleSheet.create({
   pickerOptionLabel: { fontSize: 16, fontWeight: '600', color: colors.text },
   pickerOptionLabelSelected: { color: colors.accent },
   pickerOptionDesc: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+
+  // Speed Round badge
+  speedBadge: {
+    backgroundColor: colors.surface, borderRadius: 12, padding: 16,
+    borderWidth: 2, borderColor: colors.highlight, marginBottom: 24,
+    alignItems: 'center' as const,
+  },
+  speedBadgeText: {
+    fontSize: 20, fontWeight: '900' as const, color: colors.highlight, letterSpacing: 2,
+  },
+  speedBadgeSub: {
+    fontSize: 13, color: colors.textSecondary, marginTop: 4,
+  },
+
+  // Party Mode toggle
+  partyToggleRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const,
+    backgroundColor: colors.surface, borderRadius: 12, padding: 16,
+    borderWidth: 2, borderColor: colors.surfaceBorder, marginBottom: 24,
+  },
+  partyToggleRowActive: {
+    borderColor: colors.accent,
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+  },
+  partyToggleText: { flex: 1 },
+  partyToggleLabel: {
+    fontSize: 16, fontWeight: '900' as const, color: colors.accent, letterSpacing: 1,
+  },
+  partyToggleSub: {
+    fontSize: 12, color: colors.textSecondary, marginTop: 2,
+  },
 
   input: {
     backgroundColor: colors.surface, borderRadius: 10, padding: 16,

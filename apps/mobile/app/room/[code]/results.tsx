@@ -9,7 +9,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
-import type { SessionHighlightsResponse } from '@chaos-agent/shared';
+import * as Clipboard from 'expo-clipboard';
+import type { SessionHighlightsResponse, GetSeasonInfoResponse, CapturedMoment } from '@chaos-agent/shared';
 import { api } from '@/lib/api';
 import { useSessionStore } from '@/stores/session-store';
 import { showToast } from '@/components/Toast';
@@ -53,6 +54,9 @@ export default function ResultsScreen() {
   const [ahqSyncCount, setAhqSyncCount] = useState(0);
   const [isAhqLinked, setIsAhqLinked] = useState(false);
   const [showAhqPrompt, setShowAhqPrompt] = useState(false);
+  const [seasonInfo, setSeasonInfo] = useState<GetSeasonInfoResponse | null>(null);
+  const [showShareOptions, setShowShareOptions] = useState(false);
+  const [showCaptions, setShowCaptions] = useState(false);
   const recapRef = useRef<ViewShot>(null);
   const insets = useSafeAreaInsets();
 
@@ -63,6 +67,7 @@ export default function ResultsScreen() {
         showToast('Failed to load results.');
       }),
       api.getPhotos(roomId).then((res) => setPhotos(res.photos)).catch(() => {}),
+      api.getSeasonInfo(roomId).then(setSeasonInfo).catch(() => {}),
     ]).finally(() => setLoading(false));
 
     // Sync to AHQ after game ends
@@ -160,6 +165,89 @@ export default function ResultsScreen() {
     }
   };
 
+  // Generate share text template
+  const generateShareText = (): string => {
+    if (!data) return '';
+    const winner = data.leaderboard[0];
+    const season = seasonInfo?.season ?? room?.season_number;
+    const episode = seasonInfo?.episode ?? room?.episode_number;
+    const seTag = season && episode ? ` Season ${season}, Episode ${episode}.` : '';
+    return `My crew just played Fugly's Chaos Agent! ${winner?.nickname ?? 'Someone'} won with ${winner?.score ?? 0} pts.${seTag} #ChaosAgent #FullUproar #GameNight`;
+  };
+
+  // Generate TikTok-ready viral captions
+  const generateCaptions = (): string[] => {
+    if (!data) return [];
+    const captions: string[] = [];
+    const winner = data.leaderboard[0];
+    const season = seasonInfo?.season ?? room?.season_number;
+    const episode = seasonInfo?.episode ?? room?.episode_number;
+    const streak = room?.streak_count ?? seasonInfo?.current_streak;
+
+    // Caption 1: bullshit-focused
+    const totalBS = data.total_bullshits;
+    if (totalBS > 0 && winner) {
+      captions.push(`${winner.nickname} just survived ${totalBS} BULLSHIT calls at game night #ChaosAgent`);
+    }
+
+    // Caption 2: streak-focused
+    if (streak && streak > 1 && season && episode) {
+      captions.push(`Our crew's ${streak}-week streak is ALIVE! Season ${season} Episode ${episode} #GameNight`);
+    }
+
+    // Caption 3: highlight badge
+    if (data.highlights.length > 0) {
+      const h = data.highlights[0];
+      captions.push(`${h.player_nickname} earned "${HIGHLIGHT_LABELS[h.type] ?? h.type}"! ${h.description} #FullUproar`);
+    }
+
+    // Caption 4: score + time
+    if (winner) {
+      captions.push(`${winner.score} pts of pure chaos. ${data.total_claims} claims, ${totalBS} bullshits. #ChaosAgent #GameNight`);
+    }
+
+    return captions.slice(0, 3);
+  };
+
+  const handleCopyCaption = async (caption: string) => {
+    await Clipboard.setStringAsync(caption);
+    showToast('Caption copied!');
+  };
+
+  const handleShareWithCaption = async (caption: string) => {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const uri = await captureRecap();
+      if (!uri) {
+        Alert.alert('Error', 'Failed to generate recap image.');
+        return;
+      }
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert('Sharing not available', 'Sharing is not available on this device.');
+        return;
+      }
+      // Copy caption to clipboard before sharing image
+      await Clipboard.setStringAsync(caption);
+      showToast('Caption copied to clipboard!');
+      await Sharing.shareAsync(uri, {
+        mimeType: 'image/png',
+        dialogTitle: 'Share your Chaos Agent recap',
+      });
+    } catch (err) {
+      console.error('Share with caption error:', err);
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    const text = generateShareText();
+    await Clipboard.setStringAsync(text);
+    showToast('Share text copied!');
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -176,6 +264,18 @@ export default function ResultsScreen() {
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
       ListHeaderComponent={
         <>
+          {/* Season/Episode title card */}
+          {seasonInfo && (
+            <View style={styles.seasonHeader}>
+              <Text style={styles.seasonTitle}>
+                SEASON {seasonInfo.season}, EPISODE {seasonInfo.episode}
+              </Text>
+              {seasonInfo.crew_name && (
+                <Text style={styles.crewName}>{seasonInfo.crew_name}</Text>
+              )}
+            </View>
+          )}
+
           <Text style={styles.heading}>GAME OVER</Text>
 
           {/* Stats row */}
@@ -196,6 +296,27 @@ export default function ResultsScreen() {
             </View>
           )}
 
+          {/* PROMINENT Share Recap CTA */}
+          {data && (
+            <View style={styles.shareHeroSection}>
+              <TouchableOpacity
+                style={styles.shareHeroButton}
+                onPress={() => setShowShareOptions(true)}
+                activeOpacity={0.7}
+                disabled={sharing}
+              >
+                {sharing ? (
+                  <ActivityIndicator color={colors.accentText} size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.shareHeroButtonText}>SHARE RECAP</Text>
+                    <Text style={styles.shareHeroSubtext}>Show your crew who dominated</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Highlights */}
           {data && data.highlights.length > 0 && (
             <View style={styles.highlightsSection}>
@@ -209,6 +330,31 @@ export default function ResultsScreen() {
                     {h.player_nickname}
                   </Text>
                   <Text style={styles.highlightDesc}>{h.description}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Captured Moments */}
+          {data && data.moments && data.moments.length > 0 && (
+            <View style={styles.momentsSection}>
+              <Text style={styles.sectionTitle}>CAPTURED MOMENTS</Text>
+              {data.moments.map((m) => (
+                <View key={m.id} style={styles.momentCard}>
+                  <Text style={styles.momentType}>
+                    {m.moment_type === 'epic_claim' ? 'EPIC' :
+                     m.moment_type === 'bullshit_call' ? 'BUSTED' :
+                     m.moment_type === 'funny_quote' ? 'QUOTE' :
+                     m.moment_type === 'mini_game_win' ? 'WINNER' :
+                     m.moment_type.toUpperCase()}
+                  </Text>
+                  <Text style={styles.momentDesc}>{m.description}</Text>
+                  {m.involved_players.length > 0 && (
+                    <Text style={styles.momentPlayers}>{m.involved_players.join(', ')}</Text>
+                  )}
+                  {m.tick_minute != null && (
+                    <Text style={styles.momentTime}>@ {m.tick_minute} min</Text>
+                  )}
                 </View>
               ))}
             </View>
@@ -259,6 +405,33 @@ export default function ResultsScreen() {
       )}
       ListFooterComponent={
         <>
+          {/* Streak banner */}
+          {seasonInfo && seasonInfo.current_streak > 0 && (
+            <View style={styles.streakBanner}>
+              {seasonInfo.current_streak === 1 ? (
+                <>
+                  <Text style={styles.streakEmoji}>🔥</Text>
+                  <Text style={styles.streakText}>
+                    The beginning of something great.{'\n'}Come back next week to start a streak.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.streakEmoji}>🔥</Text>
+                  <Text style={styles.streakCount}>{seasonInfo.current_streak}-WEEK STREAK</Text>
+                  <Text style={styles.streakText}>
+                    The streak is alive! {seasonInfo.current_streak} weeks strong. Don't break it.
+                  </Text>
+                  {seasonInfo.longest_streak > seasonInfo.current_streak && (
+                    <Text style={styles.streakRecord}>
+                      Your record is {seasonInfo.longest_streak}. Can you beat it?
+                    </Text>
+                  )}
+                </>
+              )}
+            </View>
+          )}
+
           {/* Share / Save recap buttons */}
           {data && (
             <View style={styles.shareSection}>
@@ -271,22 +444,40 @@ export default function ResultsScreen() {
                 {sharing ? (
                   <ActivityIndicator color={colors.accentText} size="small" />
                 ) : (
-                  <Text style={styles.shareRecapButtonText}>SHARE RECAP</Text>
+                  <Text style={styles.shareRecapButtonText}>SHARE TO INSTAGRAM / STORIES</Text>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.savePhotosButton}
-                onPress={handleSaveToPhotos}
+                style={styles.tikTokButton}
+                onPress={() => setShowCaptions(true)}
                 activeOpacity={0.7}
-                disabled={saving}
               >
-                {saving ? (
-                  <ActivityIndicator color={colors.accent} size="small" />
-                ) : (
-                  <Text style={styles.savePhotosButtonText}>SAVE TO PHOTOS</Text>
-                )}
+                <Text style={styles.tikTokButtonText}>TIKTOK CAPTION</Text>
               </TouchableOpacity>
+
+              <View style={styles.shareSecondaryRow}>
+                <TouchableOpacity
+                  style={styles.savePhotosButton}
+                  onPress={handleSaveToPhotos}
+                  activeOpacity={0.7}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator color={colors.accent} size="small" />
+                  ) : (
+                    <Text style={styles.savePhotosButtonText}>SAVE TO PHOTOS</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.copyLinkButton}
+                  onPress={handleCopyShareLink}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.copyLinkButtonText}>COPY TEXT</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -335,6 +526,10 @@ export default function ResultsScreen() {
             gameType={room?.game_type}
             date={room?.ended_at ?? room?.started_at ?? new Date().toISOString()}
             playerCount={players.length}
+            seasonNumber={seasonInfo?.season ?? room?.season_number}
+            episodeNumber={seasonInfo?.episode ?? room?.episode_number}
+            streakCount={room?.streak_count ?? seasonInfo?.current_streak}
+            crewName={room?.crew_name ?? seasonInfo?.crew_name}
           />
         </ViewShot>
       </View>
@@ -367,6 +562,65 @@ export default function ResultsScreen() {
         </TouchableOpacity>
       </Modal>
     )}
+    {/* Share options modal */}
+    {showShareOptions && (
+      <Modal transparent animationType="slide" onRequestClose={() => setShowShareOptions(false)}>
+        <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowShareOptions(false)} activeOpacity={1}>
+          <View style={styles.shareModal}>
+            <Text style={styles.shareModalTitle}>SHARE YOUR RECAP</Text>
+
+            <TouchableOpacity style={styles.shareOption} onPress={() => { setShowShareOptions(false); handleShareRecap(); }} activeOpacity={0.7}>
+              <Text style={styles.shareOptionText}>Share to Instagram / Stories</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.shareOption} onPress={() => { setShowShareOptions(false); setShowCaptions(true); }} activeOpacity={0.7}>
+              <Text style={styles.shareOptionText}>TikTok Caption</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.shareOption} onPress={() => { setShowShareOptions(false); handleCopyShareLink(); }} activeOpacity={0.7}>
+              <Text style={styles.shareOptionText}>Copy Share Text</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.shareOption} onPress={() => { setShowShareOptions(false); handleSaveToPhotos(); }} activeOpacity={0.7}>
+              <Text style={styles.shareOptionText}>Save to Photos</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.shareModalCancel} onPress={() => setShowShareOptions(false)} activeOpacity={0.7}>
+              <Text style={styles.shareModalCancelText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    )}
+
+    {/* TikTok captions modal */}
+    {showCaptions && (
+      <Modal transparent animationType="slide" onRequestClose={() => setShowCaptions(false)}>
+        <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowCaptions(false)} activeOpacity={1}>
+          <View style={styles.captionsModal}>
+            <Text style={styles.captionsModalTitle}>VIRAL CAPTIONS</Text>
+            <Text style={styles.captionsModalSubtext}>Tap to copy, hold to share with image</Text>
+
+            {generateCaptions().map((caption, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.captionCard}
+                onPress={() => handleCopyCaption(caption)}
+                onLongPress={() => { setShowCaptions(false); handleShareWithCaption(caption); }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.captionText}>{caption}</Text>
+                <Text style={styles.captionAction}>TAP TO COPY</Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={styles.shareModalCancel} onPress={() => setShowCaptions(false)} activeOpacity={0.7}>
+              <Text style={styles.shareModalCancelText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    )}
     </>
   );
 }
@@ -374,6 +628,19 @@ export default function ResultsScreen() {
 const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
   content: { padding: 24, paddingBottom: 48 },
+  // Season header
+  seasonHeader: {
+    alignItems: 'center', marginBottom: 8,
+  },
+  seasonTitle: {
+    fontSize: 18, fontWeight: '900', color: colors.accent,
+    letterSpacing: 3, textAlign: 'center',
+  },
+  crewName: {
+    fontSize: 14, fontWeight: '600', color: colors.highlight,
+    letterSpacing: 1, marginTop: 4, textAlign: 'center',
+  },
+
   heading: {
     fontSize: 36, fontWeight: '900', color: colors.accent,
     letterSpacing: 4, textAlign: 'center', marginBottom: 24,
@@ -452,7 +719,60 @@ const styles = StyleSheet.create({
     fontSize: 22, fontWeight: '900', color: colors.textMuted,
   },
 
-  // Share section
+  // Streak banner
+  streakBanner: {
+    backgroundColor: colors.surface, borderRadius: 12, padding: 20,
+    borderWidth: 2, borderColor: colors.accent, marginBottom: 16,
+    alignItems: 'center',
+  },
+  streakEmoji: {
+    fontSize: 36, marginBottom: 8,
+  },
+  streakCount: {
+    fontSize: 24, fontWeight: '900', color: colors.accent,
+    letterSpacing: 2, marginBottom: 4,
+  },
+  streakText: {
+    fontSize: 15, fontWeight: '600', color: colors.text,
+    textAlign: 'center', lineHeight: 22,
+  },
+  streakRecord: {
+    fontSize: 13, color: colors.highlight, marginTop: 8,
+    fontWeight: '600', letterSpacing: 0.5,
+  },
+
+  // Share hero (prominent CTA after stats)
+  shareHeroSection: {
+    marginBottom: 24,
+  },
+  shareHeroButton: {
+    backgroundColor: colors.accent, paddingVertical: 22, paddingHorizontal: 32,
+    borderRadius: 16, alignItems: 'center', minHeight: 72,
+    justifyContent: 'center',
+  },
+  shareHeroButtonText: {
+    fontSize: 20, fontWeight: '900', color: colors.accentText, letterSpacing: 3,
+  },
+  shareHeroSubtext: {
+    fontSize: 12, fontWeight: '600', color: colors.accentText, opacity: 0.7,
+    marginTop: 4, letterSpacing: 1,
+  },
+
+  // Moments section
+  momentsSection: { marginTop: 16, marginBottom: 8 },
+  momentCard: {
+    backgroundColor: colors.surface, borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: colors.surfaceBorder, marginBottom: 8,
+  },
+  momentType: {
+    fontSize: 10, fontWeight: '900', color: colors.warning,
+    letterSpacing: 2, marginBottom: 4,
+  },
+  momentDesc: { fontSize: 14, fontWeight: '600', color: colors.text },
+  momentPlayers: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
+  momentTime: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+
+  // Share section (footer)
   shareSection: {
     marginTop: 20,
     gap: 10,
@@ -462,13 +782,83 @@ const styles = StyleSheet.create({
     borderRadius: 50, alignItems: 'center', minHeight: 56,
     justifyContent: 'center',
   },
-  shareRecapButtonText: { fontSize: 16, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
-  savePhotosButton: {
-    backgroundColor: colors.surface, paddingVertical: 16, paddingHorizontal: 48,
-    borderRadius: 50, alignItems: 'center', borderWidth: 1, borderColor: colors.accent,
+  shareRecapButtonText: { fontSize: 14, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
+  tikTokButton: {
+    backgroundColor: '#111827', paddingVertical: 16, paddingHorizontal: 48,
+    borderRadius: 50, alignItems: 'center', borderWidth: 2, borderColor: '#FF0050',
     minHeight: 52, justifyContent: 'center',
   },
-  savePhotosButtonText: { fontSize: 14, fontWeight: '900', color: colors.accent, letterSpacing: 2 },
+  tikTokButtonText: { fontSize: 14, fontWeight: '900', color: '#FF0050', letterSpacing: 2 },
+  shareSecondaryRow: {
+    flexDirection: 'row', gap: 10,
+  },
+  savePhotosButton: {
+    flex: 1,
+    backgroundColor: colors.surface, paddingVertical: 14, paddingHorizontal: 16,
+    borderRadius: 50, alignItems: 'center', borderWidth: 1, borderColor: colors.accent,
+    minHeight: 48, justifyContent: 'center',
+  },
+  savePhotosButtonText: { fontSize: 12, fontWeight: '900', color: colors.accent, letterSpacing: 1 },
+  copyLinkButton: {
+    flex: 1,
+    backgroundColor: colors.surface, paddingVertical: 14, paddingHorizontal: 16,
+    borderRadius: 50, alignItems: 'center', borderWidth: 1, borderColor: colors.surfaceBorder,
+    minHeight: 48, justifyContent: 'center',
+  },
+  copyLinkButtonText: { fontSize: 12, fontWeight: '900', color: colors.textSecondary, letterSpacing: 1 },
+
+  // Share options modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'flex-end',
+  },
+  shareModal: {
+    backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 40,
+  },
+  shareModalTitle: {
+    fontSize: 18, fontWeight: '900', color: colors.text,
+    letterSpacing: 2, textAlign: 'center', marginBottom: 20,
+  },
+  shareOption: {
+    paddingVertical: 16, paddingHorizontal: 20,
+    borderRadius: 12, backgroundColor: colors.bg, marginBottom: 8,
+    minHeight: 52, justifyContent: 'center',
+  },
+  shareOptionText: {
+    fontSize: 16, fontWeight: '700', color: colors.text, textAlign: 'center',
+  },
+  shareModalCancel: {
+    paddingVertical: 14, marginTop: 8, alignItems: 'center',
+    minHeight: 44, justifyContent: 'center',
+  },
+  shareModalCancelText: {
+    fontSize: 14, fontWeight: '900', color: colors.textMuted, letterSpacing: 2,
+  },
+
+  // Captions modal
+  captionsModal: {
+    backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 40,
+  },
+  captionsModalTitle: {
+    fontSize: 18, fontWeight: '900', color: colors.text,
+    letterSpacing: 2, textAlign: 'center', marginBottom: 4,
+  },
+  captionsModalSubtext: {
+    fontSize: 12, color: colors.textMuted, textAlign: 'center', marginBottom: 20,
+  },
+  captionCard: {
+    backgroundColor: colors.bg, borderRadius: 12, padding: 16,
+    borderWidth: 1, borderColor: colors.surfaceBorder, marginBottom: 10,
+  },
+  captionText: {
+    fontSize: 14, fontWeight: '600', color: colors.text, lineHeight: 20,
+  },
+  captionAction: {
+    fontSize: 10, fontWeight: '900', color: colors.accent, letterSpacing: 2,
+    marginTop: 8,
+  },
 
   // Off-screen capture area
   offscreen: {

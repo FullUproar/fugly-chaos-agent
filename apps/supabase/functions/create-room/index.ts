@@ -14,7 +14,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { game_type, game_name, room_name, settings, nickname } = await req.json();
+    const { game_type, game_name, room_name, settings, nickname, crew_name, partyMode, speedMode } = await req.json();
+
+    // Merge mode flags into room settings
+    const mergedSettings = {
+      ...(settings ?? {}),
+      ...(partyMode ? { partyMode: true } : {}),
+      ...(speedMode ? { speedMode: true } : {}),
+    };
     const supabase = getAdminClient();
 
     // Ensure player record exists
@@ -42,6 +49,51 @@ Deno.serve(async (req) => {
       attempts++;
     } while (attempts < 10);
 
+    // Compute season/episode if this group of players has history together
+    let seasonNumber = 1;
+    let episodeNumber = 1;
+    let resolvedCrewName = crew_name ?? null;
+    let streakCount: number | null = null;
+
+    // Check if host has a profile with session history
+    const { data: hostProfile } = await supabase
+      .from('player_profiles')
+      .select('id, current_streak')
+      .eq('player_id', userId)
+      .single();
+
+    if (hostProfile) {
+      // Count past sessions for this player to compute season/episode
+      const { data: pastSessions } = await supabase
+        .from('session_history')
+        .select('room_id')
+        .eq('player_profile_id', hostProfile.id);
+
+      if (pastSessions && pastSessions.length > 0) {
+        const uniqueRooms = new Set(pastSessions.map((s: { room_id: string }) => s.room_id));
+        const totalSessions = uniqueRooms.size;
+        seasonNumber = Math.floor(totalSessions / 10) + 1;
+        episodeNumber = (totalSessions % 10) + 1;
+      }
+
+      streakCount = hostProfile.current_streak ?? 0;
+
+      // Look for a crew_name from previous rooms if not provided
+      if (!resolvedCrewName) {
+        const { data: prevRooms } = await supabase
+          .from('rooms')
+          .select('crew_name')
+          .eq('host_id', userId)
+          .not('crew_name', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (prevRooms && prevRooms.length > 0) {
+          resolvedCrewName = prevRooms[0].crew_name;
+        }
+      }
+    }
+
     // Create room
     const { data: room, error: roomError } = await supabase
       .from('rooms')
@@ -51,7 +103,11 @@ Deno.serve(async (req) => {
         game_type: game_type ?? 'party_game',
         game_name: game_name ?? null,
         room_name: room_name ?? null,
-        settings: settings ?? {},
+        settings: mergedSettings,
+        season_number: seasonNumber,
+        episode_number: episodeNumber,
+        crew_name: resolvedCrewName,
+        streak_count: streakCount,
       })
       .select('id, code')
       .single();
@@ -68,7 +124,15 @@ Deno.serve(async (req) => {
 
     if (rpError) throw rpError;
 
-    return new Response(JSON.stringify({ room_id: room.id, code: room.code, room_player_id: roomPlayer.id }), {
+    return new Response(JSON.stringify({
+      room_id: room.id,
+      code: room.code,
+      room_player_id: roomPlayer.id,
+      season_number: seasonNumber,
+      episode_number: episodeNumber,
+      crew_name: resolvedCrewName,
+      streak_count: streakCount,
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

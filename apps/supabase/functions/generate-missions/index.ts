@@ -2,7 +2,7 @@ import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/supabase-client.ts';
 import { generateStandingMissions } from '../_shared/mission-pool.ts';
 import { generateWithSystem } from '../_shared/claude.ts';
-import { getGameContextProfile } from '../_shared/game-context-profiles.ts';
+import { getGameContextProfile, getEffectiveProfile } from '../_shared/game-context-profiles.ts';
 
 interface AIMission {
   title: string;
@@ -50,8 +50,12 @@ Deno.serve(async (req) => {
 
     if (!room) throw new Error('Room not found');
 
-    // Look up game context profile for this room's game type
-    const profile = getGameContextProfile(room.game_type ?? 'custom');
+    // Look up game context profile, applying party/speed mode overrides
+    const roomSettings = (room.settings ?? {}) as Record<string, unknown>;
+    const profile = getEffectiveProfile(room.game_type ?? 'custom', {
+      partyMode: !!roomSettings.partyMode,
+      speedMode: !!roomSettings.speedMode,
+    });
     const missionCount = profile.standingMissionCount;
     const allowedCategories = profile.allowedMissionCategories;
 

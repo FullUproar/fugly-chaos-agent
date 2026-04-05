@@ -42,6 +42,10 @@ import type {
   LinkAHQAccountResponse,
   SyncToAHQResponse,
   PlayerProfileResponse,
+  GetSeasonInfoResponse,
+  EndSessionResponse,
+  CaptureMomentRequest,
+  CaptureMomentResponse,
 } from '@chaos-agent/shared';
 
 async function invoke<T>(functionName: string, body?: Record<string, unknown>): Promise<T> {
@@ -95,7 +99,7 @@ export const api = {
     invoke<VoteClaimResponse>('vote-claim', { ...req }),
 
   endSession: (req: EndSessionRequest) =>
-    invoke<void>('end-session', { ...req }),
+    invoke<EndSessionResponse>('end-session', { ...req }),
 
   getHighlights: (roomId: string) =>
     invoke<SessionHighlightsResponse>('session-highlights', { room_id: roomId }),
@@ -202,4 +206,12 @@ export const api = {
       next_check_seconds: number;
       reason?: string;
     }>('auto-schedule', { ...req }),
+
+  // Streaks & Seasons
+  getSeasonInfo: (roomId: string) =>
+    invoke<GetSeasonInfoResponse>('get-season-info', { room_id: roomId }),
+
+  // Moment capture
+  captureMoment: (req: CaptureMomentRequest) =>
+    invoke<CaptureMomentResponse>('capture-moment', { ...req }),
 };

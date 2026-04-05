@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -19,6 +19,8 @@ export default function HomeScreen() {
   const [resuming, setResuming] = useState(false);
   const [ahqProfile, setAhqProfile] = useState<PlayerProfileResponse['profile']>(null);
   const [ahqLoading, setAhqLoading] = useState(true);
+  const [streakCount, setStreakCount] = useState(0);
+  const [lastSessionWeek, setLastSessionWeek] = useState<string | null>(null);
   const setIdentity = useSessionStore((s) => s.setIdentity);
   const insets = useSafeAreaInsets();
 
@@ -36,10 +38,16 @@ export default function HomeScreen() {
     });
   }, []);
 
-  // Load AHQ profile
+  // Load AHQ profile and streak data
   useEffect(() => {
     api.getPlayerProfile()
-      .then((res) => setAhqProfile(res.profile))
+      .then((res) => {
+        setAhqProfile(res.profile);
+        if (res.profile) {
+          setStreakCount(res.profile.current_streak ?? 0);
+          setLastSessionWeek(res.profile.last_session_week ?? null);
+        }
+      })
       .catch(() => {})
       .finally(() => setAhqLoading(false));
   }, []);
@@ -109,6 +117,11 @@ export default function HomeScreen() {
       <Text style={styles.title}>CHAOS AGENT</Text>
       <Text style={styles.subtitle}>Secret missions. Social chaos.</Text>
 
+      {/* Streak display */}
+      {streakCount > 0 && (
+        <StreakBadge streakCount={streakCount} lastSessionWeek={lastSessionWeek} />
+      )}
+
       {/* AHQ Profile or Connect */}
       {/* Enable when fulluproar.com/auth/chaos-agent is live */}
       {false && !ahqLoading && ahqProfile && (
@@ -172,6 +185,15 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[styles.button, styles.speedButton]}
+          onPress={() => router.push('/create?speed=1')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.speedButtonText}>{'\u26A1'} SPEED ROUND</Text>
+          <Text style={styles.speedButtonSub}>30 minutes of pure chaos</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.button, styles.secondaryButton]}
           onPress={() => router.push('/plan')}
           activeOpacity={0.8}
@@ -193,6 +215,45 @@ export default function HomeScreen() {
   );
 }
 
+function getStreakDaysRemaining(lastSessionWeek: string | null): number | null {
+  if (!lastSessionWeek) return null;
+  const match = lastSessionWeek.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return null;
+  const year = parseInt(match[1], 10);
+  const week = parseInt(match[2], 10);
+  // ISO week 1 starts on the Monday of the week containing Jan 4
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7;
+  const weekStart = new Date(jan4.getTime() + ((week - 1) * 7 - (dayOfWeek - 1)) * 86400000);
+  // Streak expires at end of the NEXT week (Sunday 23:59)
+  const nextWeekEnd = new Date(weekStart.getTime() + 14 * 86400000 - 1);
+  const now = new Date();
+  const msRemaining = nextWeekEnd.getTime() - now.getTime();
+  if (msRemaining <= 0) return 0;
+  return Math.ceil(msRemaining / 86400000);
+}
+
+function StreakBadge({ streakCount, lastSessionWeek }: { streakCount: number; lastSessionWeek: string | null }) {
+  const daysRemaining = getStreakDaysRemaining(lastSessionWeek);
+  const isAtRisk = daysRemaining !== null && daysRemaining <= 3;
+
+  return (
+    <View style={styles.streakBadge}>
+      {isAtRisk ? (
+        <>
+          <Text style={styles.streakBadgeText}>
+            {'\u26A0\uFE0F'} Streak expires in {daysRemaining} day{daysRemaining !== 1 ? 's' : ''}!
+          </Text>
+        </>
+      ) : (
+        <Text style={styles.streakBadgeText}>
+          {'\uD83D\uDD25'} {streakCount}-week streak
+        </Text>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.bg },
   container: {
@@ -205,6 +266,15 @@ const styles = StyleSheet.create({
     letterSpacing: 4, marginBottom: 8,
   },
   subtitle: { fontSize: 16, color: colors.highlight, marginBottom: 24 },
+
+  // Streak badge
+  streakBadge: {
+    backgroundColor: colors.surface, borderRadius: 50, paddingVertical: 10, paddingHorizontal: 20,
+    borderWidth: 1, borderColor: colors.accent, marginBottom: 20, alignSelf: 'center',
+  },
+  streakBadgeText: {
+    fontSize: 15, fontWeight: '800', color: colors.accent, letterSpacing: 1,
+  },
 
   // AHQ Profile card
   ahqProfileCard: {
@@ -244,6 +314,15 @@ const styles = StyleSheet.create({
   button: { paddingVertical: 20, borderRadius: 50, alignItems: 'center', minHeight: 60 },
   primaryButton: { backgroundColor: colors.accent },
   primaryButtonText: { fontSize: 18, fontWeight: '900', color: colors.accentText, letterSpacing: 2 },
+  speedButton: {
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.highlight,
+  },
+  speedButtonText: {
+    fontSize: 18, fontWeight: '900', color: colors.highlight, letterSpacing: 2,
+  },
+  speedButtonSub: {
+    fontSize: 12, color: colors.textSecondary, marginTop: 2,
+  },
   secondaryButton: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.accent },
   secondaryButtonText: { fontSize: 18, fontWeight: '900', color: colors.accent, letterSpacing: 2 },
   outlineButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.surfaceBorder },

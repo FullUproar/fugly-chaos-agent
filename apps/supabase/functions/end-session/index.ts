@@ -47,6 +47,74 @@ Deno.serve(async (req) => {
       .update({ status: 'ENDED', ended_at: new Date().toISOString() })
       .eq('id', room_id);
 
+    // Get room season/episode info for session_history records
+    const { data: roomInfo } = await supabase
+      .from('rooms')
+      .select('season_number, episode_number, crew_name')
+      .eq('id', room_id)
+      .single();
+
+    const seasonNumber = roomInfo?.season_number ?? 1;
+    const episodeNumber = roomInfo?.episode_number ?? 1;
+
+    // Create session_history records for all players with profiles
+    const { data: allRoomPlayers } = await supabase
+      .from('room_players')
+      .select('player_id, nickname, score')
+      .eq('room_id', room_id)
+      .order('score', { ascending: false });
+
+    if (allRoomPlayers && allRoomPlayers.length > 0) {
+      const playerIds = allRoomPlayers.map((rp: any) => rp.player_id);
+      const { data: profiles } = await supabase
+        .from('player_profiles')
+        .select('id, player_id')
+        .in('player_id', playerIds);
+
+      if (profiles && profiles.length > 0) {
+        const profileMap = new Map(profiles.map((p: any) => [p.player_id, p.id]));
+        const historyRecords = allRoomPlayers
+          .filter((rp: any) => profileMap.has(rp.player_id))
+          .map((rp: any, idx: number) => ({
+            room_id,
+            player_profile_id: profileMap.get(rp.player_id),
+            nickname: rp.nickname,
+            final_score: rp.score ?? 0,
+            final_rank: idx + 1,
+            season_number: seasonNumber,
+            episode_number: episodeNumber,
+            played_at: new Date().toISOString(),
+          }));
+
+        if (historyRecords.length > 0) {
+          await supabase.from('session_history').insert(historyRecords);
+        }
+      }
+    }
+
+    // Update streaks for all players
+    let streakResults: any[] = [];
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+      const streakRes = await fetch(`${supabaseUrl}/functions/v1/update-streak`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ room_id }),
+      });
+
+      if (streakRes.ok) {
+        const streakData = await streakRes.json();
+        streakResults = streakData.streaks ?? [];
+      }
+    } catch {
+      // Streak update failure is non-critical
+    }
+
     // Sync stats to Afterroar HQ for linked players
     let ahqSynced = 0;
     try {
@@ -80,7 +148,13 @@ Deno.serve(async (req) => {
       // AHQ sync failure is non-critical — don't block the end-session response
     }
 
-    return new Response(JSON.stringify({ ended: true, ahq_synced: ahqSynced }), {
+    return new Response(JSON.stringify({
+      ended: true,
+      ahq_synced: ahqSynced,
+      season_number: seasonNumber,
+      episode_number: episodeNumber,
+      streaks: streakResults,
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

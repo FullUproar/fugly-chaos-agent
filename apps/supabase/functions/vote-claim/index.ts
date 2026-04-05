@@ -5,6 +5,27 @@ import { sendPush } from '../_shared/push.ts';
 const FALSE_CLAIM_PENALTY = 5;
 const VOTE_WINDOW_SECONDS = 60;
 
+/** Fire-and-forget moment capture via internal function call */
+function autoCaptureMoment(roomId: string, momentType: string, description: string, involvedPlayerIds: string[] = []) {
+  fetch(
+    `${Deno.env.get('SUPABASE_URL')}/functions/v1/capture-moment`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        room_id: roomId,
+        moment_type: momentType,
+        description,
+        involved_player_ids: involvedPlayerIds,
+        auto_captured: true,
+      }),
+    },
+  ).catch(() => {}); // fire and forget
+}
+
 Deno.serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
@@ -176,6 +197,16 @@ Deno.serve(async (req) => {
           data: { claim_id, verdict: 'LEGIT' },
           category: 'VERDICT',
         });
+
+        // Auto-capture: auction bid exceeds 20 points
+        if (highestBid.amount > 20) {
+          autoCaptureMoment(
+            mission.room_id,
+            'epic_claim',
+            `Auction frenzy! Highest bid: ${highestBid.amount} points`,
+            [highestBid.player_id, claim.room_player_id],
+          );
+        }
 
         return new Response(JSON.stringify({
           resolved: true, claim_status: 'VOTE_PASSED', points_awarded: pointsAwarded,
@@ -468,6 +499,14 @@ Deno.serve(async (req) => {
         category: 'VERDICT',
       });
 
+      // Auto-capture: unanimous BULLSHIT moment
+      autoCaptureMoment(
+        mission.room_id,
+        'bullshit_call',
+        'Unanimous or bust: ONE dissenter killed the claim!',
+        [claim.room_player_id, voter.id],
+      );
+
       return new Response(JSON.stringify({
         resolved: true, claim_status: 'VOTE_FAILED', points_awarded: 0,
       }), {
@@ -505,6 +544,16 @@ Deno.serve(async (req) => {
         data: { claim_id, verdict: verdictText },
         category: 'VERDICT',
       });
+
+      // Auto-capture: dictator makes a controversial call
+      if (!accepted) {
+        autoCaptureMoment(
+          mission.room_id,
+          'bullshit_call',
+          `The Dictator shut it down: ${verdictText}!`,
+          [voter.id, claim.room_player_id],
+        );
+      }
 
       return new Response(JSON.stringify({
         resolved: true, claim_status: claimStatus, points_awarded: pointsAwarded,
@@ -611,6 +660,28 @@ Deno.serve(async (req) => {
         data: { claim_id, verdict: verdictText },
         category: 'VERDICT',
       });
+
+      // Auto-capture: unanimous BULLSHIT (all voters said BS)
+      const bullshitVotes = allVotes?.filter((v) => v.vote === 'BULLSHIT').length ?? 0;
+      const acceptVotes = allVotes?.filter((v) => v.vote === 'ACCEPT').length ?? 0;
+      if (claimStatus === 'VOTE_FAILED' && bullshitVotes > 0 && acceptVotes === 0) {
+        autoCaptureMoment(
+          mission.room_id,
+          'bullshit_call',
+          `Unanimous BULLSHIT! Everyone saw through it.`,
+          [claim.room_player_id],
+        );
+      }
+
+      // Auto-capture: big point claim (50+ points)
+      if (claimStatus === 'VOTE_PASSED' && pointsAwarded >= 50) {
+        autoCaptureMoment(
+          mission.room_id,
+          'epic_claim',
+          `Massive ${pointsAwarded}-point claim approved!`,
+          [claim.room_player_id],
+        );
+      }
     }
 
     return new Response(JSON.stringify({

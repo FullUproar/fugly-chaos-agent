@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import type { Mission, ClaimWithContext, VoteType, SignalType } from '@chaos-agent/shared';
+import type { Mission, ClaimWithContext, VoteType, SignalType, MomentType } from '@chaos-agent/shared';
 import { api } from '@/lib/api';
 import { useSessionStore } from '@/stores/session-store';
 import { usePolling } from '@/hooks/use-polling';
@@ -46,6 +46,60 @@ export default function PlayScreen() {
     dismissFlash, dismissPoll, dismissMiniGame,
     activeMiniGame, gameContext,
   } = useSessionStore();
+
+  // Moment capture state
+  const [showCapturePanel, setShowCapturePanel] = useState(false);
+  const [captureType, setCaptureType] = useState<MomentType>('funny_quote');
+  const [captureText, setCaptureText] = useState('');
+  const [capturing, setCapturing] = useState(false);
+  const [captureToast, setCaptureToast] = useState<string | null>(null);
+  const captureToastOpacity = useRef(new Animated.Value(0)).current;
+
+  // REC indicator pulse animation
+  const recPulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(recPulse, { toValue: 0.3, duration: 1200, useNativeDriver: true }),
+        Animated.timing(recPulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+      ]),
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [recPulse]);
+
+  const handleCaptureMoment = async () => {
+    if (!roomId || capturing) return;
+    setCapturing(true);
+    try {
+      await api.captureMoment({
+        room_id: roomId,
+        moment_type: captureType,
+        description: captureText || `${captureType.replace(/_/g, ' ')} moment`,
+      });
+      setCaptureToast('Moment captured!');
+      captureToastOpacity.setValue(1);
+      Animated.timing(captureToastOpacity, {
+        toValue: 0,
+        duration: 2000,
+        delay: 800,
+        useNativeDriver: true,
+      }).start(() => setCaptureToast(null));
+      setShowCapturePanel(false);
+      setCaptureText('');
+    } catch {
+      setCaptureToast('Failed to capture');
+      captureToastOpacity.setValue(1);
+      Animated.timing(captureToastOpacity, {
+        toValue: 0,
+        duration: 1500,
+        delay: 800,
+        useNativeDriver: true,
+      }).start(() => setCaptureToast(null));
+    } finally {
+      setCapturing(false);
+    }
+  };
 
   // Auto-break suggestion state
   const [breakSuggested, setBreakSuggested] = useState(false);
@@ -215,11 +269,18 @@ export default function PlayScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header with room name and end game for host */}
+      {/* Header with room name, REC indicator, and end game for host */}
       <View style={styles.headerBar}>
-        {room?.room_name ? (
-          <Text style={styles.roomNameHeader}>{room.room_name}</Text>
-        ) : <View />}
+        <View style={styles.headerLeft}>
+          {room?.room_name ? (
+            <Text style={styles.roomNameHeader}>{room.room_name}</Text>
+          ) : <View />}
+          {/* REC indicator — reminds players moments are being captured */}
+          <Animated.View style={[styles.recBadge, { opacity: recPulse }]}>
+            <View style={styles.recDot} />
+            <Text style={styles.recText}>REC</Text>
+          </Animated.View>
+        </View>
         {isHost && (
           <TouchableOpacity onPress={() => setShowEndConfirm(true)} activeOpacity={0.7}>
             <Text style={styles.endGameLink}>End Game</Text>
@@ -314,6 +375,51 @@ export default function PlayScreen() {
         <Animated.View style={[styles.nudgeToast, { opacity: nudgeToastOpacity, bottom: 90 + insets.bottom }]}>
           <Text style={styles.nudgeToastText}>{nudgeToast}</Text>
         </Animated.View>
+      )}
+
+      {/* Capture toast */}
+      {captureToast && (
+        <Animated.View style={[styles.captureToast, { opacity: captureToastOpacity, bottom: 90 + insets.bottom }]}>
+          <Text style={styles.captureToastText}>{captureToast}</Text>
+        </Animated.View>
+      )}
+
+      {/* Capture moment mini-FAB */}
+      <TouchableOpacity
+        style={[styles.captureFab, { bottom: 78 + insets.bottom }]}
+        onPress={() => setShowCapturePanel(!showCapturePanel)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.captureFabText}>CAP</Text>
+      </TouchableOpacity>
+
+      {/* Quick capture panel */}
+      {showCapturePanel && (
+        <View style={[styles.capturePanel, { bottom: 130 + insets.bottom }]}>
+          <Text style={styles.capturePanelTitle}>CAPTURE MOMENT</Text>
+          <View style={styles.captureTypeRow}>
+            {(['funny_quote', 'epic_claim', 'custom'] as MomentType[]).map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.captureTypeChip, captureType === t && styles.captureTypeChipActive]}
+                onPress={() => setCaptureType(t)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.captureTypeChipText, captureType === t && styles.captureTypeChipTextActive]}>
+                  {t === 'funny_quote' ? 'QUOTE' : t === 'epic_claim' ? 'EPIC' : 'OTHER'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity
+            style={[styles.captureSubmitButton, capturing && styles.buttonDisabled]}
+            onPress={handleCaptureMoment}
+            disabled={capturing}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.captureSubmitText}>{capturing ? 'SAVING...' : 'CAPTURE'}</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Signal FAB */}
@@ -892,6 +998,81 @@ const styles = StyleSheet.create({
   scoreNicknameFirst: { color: colors.accent },
   scoreValue: { fontSize: 22, fontWeight: '800', color: colors.textSecondary },
   scoreValueFirst: { color: colors.accent },
+
+  // Header left group
+  headerLeft: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1,
+  },
+
+  // REC indicator
+  recBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(255,0,0,0.15)', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  recDot: {
+    width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF0000',
+  },
+  recText: {
+    fontSize: 10, fontWeight: '900', color: '#FF0000', letterSpacing: 2,
+  },
+
+  // Capture moment mini-FAB
+  captureFab: {
+    position: 'absolute', right: 20,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 50,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.warning,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 3, minWidth: 52, minHeight: 40,
+  },
+  captureFabText: {
+    fontSize: 11, fontWeight: '900', color: colors.warning, letterSpacing: 1,
+  },
+
+  // Capture panel
+  capturePanel: {
+    position: 'absolute', right: 20,
+    backgroundColor: colors.surface, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: colors.surfaceBorder, width: 220,
+    elevation: 5,
+  },
+  capturePanelTitle: {
+    fontSize: 11, fontWeight: '900', color: colors.textSecondary,
+    letterSpacing: 2, marginBottom: 10, textAlign: 'center',
+  },
+  captureTypeRow: {
+    flexDirection: 'row', gap: 6, marginBottom: 10, justifyContent: 'center',
+  },
+  captureTypeChip: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
+    backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.surfaceBorder,
+  },
+  captureTypeChipActive: {
+    backgroundColor: colors.warning, borderColor: colors.warning,
+  },
+  captureTypeChipText: {
+    fontSize: 10, fontWeight: '700', color: colors.textMuted, letterSpacing: 1,
+  },
+  captureTypeChipTextActive: {
+    color: colors.bg,
+  },
+  captureSubmitButton: {
+    backgroundColor: colors.warning, paddingVertical: 10, borderRadius: 50,
+    alignItems: 'center', minHeight: 40,
+  },
+  captureSubmitText: {
+    fontSize: 12, fontWeight: '900', color: colors.bg, letterSpacing: 2,
+  },
+
+  // Capture toast
+  captureToast: {
+    position: 'absolute', left: 20, right: 100,
+    backgroundColor: colors.warning, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  captureToastText: {
+    fontSize: 13, fontWeight: '800', color: colors.bg, letterSpacing: 1,
+  },
 
   // FAB
   fab: {

@@ -8,6 +8,10 @@ interface RecapCardProps {
   gameType?: string;
   date: string;
   playerCount: number;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+  streakCount?: number | null;
+  crewName?: string | null;
 }
 
 const RANK_LABELS = ['1ST', '2ND', '3RD'];
@@ -18,18 +22,40 @@ const HIGHLIGHT_LABELS: Record<string, string> = {
   most_contested: 'MOST CONTESTED',
 };
 
-export default function RecapCard({ data, gameType, date, playerCount }: RecapCardProps) {
+export default function RecapCard({ data, gameType, date, playerCount, seasonNumber, episodeNumber, streakCount, crewName }: RecapCardProps) {
   const top3 = data.leaderboard.slice(0, 3);
   const formattedDate = formatRecapDate(date);
+  const hasSeasonInfo = seasonNumber != null && episodeNumber != null;
 
   return (
     <View style={styles.card}>
+      {/* Season / Episode tag */}
+      {hasSeasonInfo && (
+        <View style={styles.seasonTag}>
+          <Text style={styles.seasonTagText}>
+            SEASON {seasonNumber} {'\u2022'} EPISODE {episodeNumber}
+          </Text>
+        </View>
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.brandTag}>FULL UPROAR</Text>
         <Text style={styles.title}>CHAOS AGENT</Text>
         <Text style={styles.subtitle}>GAME NIGHT RECAP</Text>
       </View>
+
+      {/* Crew name */}
+      {crewName && (
+        <Text style={styles.crewName}>{crewName}</Text>
+      )}
+
+      {/* Streak badge */}
+      {(streakCount ?? 0) > 1 && (
+        <View style={styles.streakBadge}>
+          <Text style={styles.streakText}>{streakCount}-WEEK STREAK</Text>
+        </View>
+      )}
 
       {/* Meta */}
       <View style={styles.metaRow}>
@@ -98,11 +124,15 @@ export default function RecapCard({ data, gameType, date, playerCount }: RecapCa
         </View>
       )}
 
-      {/* Footer */}
+      {/* Watermark + Footer */}
+      <View style={styles.watermark}>
+        <Text style={styles.watermarkText}>FUGLY</Text>
+      </View>
       <View style={styles.footer}>
         <View style={styles.footerLine} />
         <Text style={styles.footerBrand}>FUGLY GAMES</Text>
         <Text style={styles.footerUrl}>fulluproar.com</Text>
+        <Text style={styles.footerHashtags}>#ChaosAgent #FullUproar #GameNight</Text>
       </View>
     </View>
   );
@@ -143,6 +173,49 @@ const styles = StyleSheet.create({
     padding: 32,
     justifyContent: 'space-between',
     overflow: 'hidden',
+  },
+
+  // Season tag
+  seasonTag: {
+    alignSelf: 'center',
+    backgroundColor: '#FF8200',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
+  seasonTagText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#111827',
+    letterSpacing: 2,
+  },
+
+  // Crew name
+  crewName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FF8200',
+    textAlign: 'center',
+    letterSpacing: 2,
+    marginTop: 4,
+  },
+
+  // Streak badge
+  streakBadge: {
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: '#fbbf24',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 3,
+    marginTop: 6,
+  },
+  streakText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#fbbf24',
+    letterSpacing: 2,
   },
 
   // Header
@@ -311,6 +384,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
+  // Watermark
+  watermark: {
+    position: 'absolute',
+    bottom: 80,
+    right: 16,
+    opacity: 0.06,
+  },
+  watermarkText: {
+    fontSize: 72,
+    fontWeight: '900',
+    color: '#FF8200',
+    letterSpacing: 8,
+  },
+
   // Footer
   footer: {
     alignItems: 'center',
@@ -333,5 +420,11 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#6b7280',
     marginTop: 2,
+  },
+  footerHashtags: {
+    fontSize: 8,
+    color: '#4b5563',
+    marginTop: 4,
+    letterSpacing: 1,
   },
 });

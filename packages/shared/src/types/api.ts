@@ -30,6 +30,8 @@ export interface CreateRoomRequest {
   room_name?: string;
   nickname?: string;
   settings?: RoomSettings;
+  partyMode?: boolean;
+  speedMode?: boolean;
 }
 export interface CreateRoomResponse {
   room_id: string;
@@ -141,6 +143,7 @@ export interface EndSessionRequest {
 export interface SessionHighlightsResponse {
   leaderboard: PlayerScore[];
   highlights: Highlight[];
+  moments: CapturedMoment[];
   total_claims: number;
   total_bullshits: number;
   total_missions: number;
@@ -151,6 +154,30 @@ export interface Highlight {
   player_nickname: string;
   description: string;
   value: number;
+}
+
+export type MomentType = 'epic_claim' | 'bullshit_call' | 'funny_quote' | 'mini_game_win' | 'photo' | 'custom';
+
+export interface CapturedMoment {
+  id: string;
+  moment_type: MomentType;
+  description: string;
+  involved_players: string[];
+  auto_captured: boolean;
+  tick_minute: number | null;
+  created_at: string;
+}
+
+// POST /capture-moment
+export interface CaptureMomentRequest {
+  room_id: string;
+  moment_type: MomentType;
+  description: string;
+  involved_player_ids?: string[];
+}
+export interface CaptureMomentResponse {
+  moment_id: string;
+  tick_minute: number | null;
 }
 
 // POST /trigger-event (dev backdoor)
@@ -406,6 +433,9 @@ export interface PlayerProfileResponse {
     win_rate: number;
     bs_accuracy: number;
     claim_success_rate: number;
+    current_streak: number;
+    longest_streak: number;
+    last_session_week: string | null;
   } | null;
   recent_sessions: Array<{
     id: string;
@@ -417,6 +447,8 @@ export interface PlayerProfileResponse {
     played_at: string;
     ahq_crew_id: string | null;
     ahq_game_night_id: string | null;
+    season_number: number;
+    episode_number: number;
   }>;
 }
 
@@ -445,6 +477,35 @@ export interface GetTeasersResponse {
   }>;
   days_until_event: number | null;
   scheduled_at: string | null;
+}
+
+// POST /get-season-info
+export interface GetSeasonInfoRequest {
+  room_id?: string;
+  crew_id?: string;
+  player_ids?: string[];
+}
+export interface GetSeasonInfoResponse {
+  season: number;
+  episode: number;
+  total_sessions: number;
+  crew_name: string | null;
+  current_streak: number;
+  longest_streak: number;
+}
+
+// POST /end-session (extended response with streak/season data)
+export interface EndSessionResponse {
+  ended: boolean;
+  ahq_synced: number;
+  season_number: number;
+  episode_number: number;
+  streaks: Array<{
+    player_profile_id: string;
+    player_id: string;
+    current_streak: number;
+    longest_streak: number;
+  }>;
 }
 
 // Generic error response

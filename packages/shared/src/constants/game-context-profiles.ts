@@ -15,6 +15,8 @@ export interface GameContextProfile {
   allowedMissionCategories: MissionCategory[] | null; // null = all
   allowedMiniGameTypes: MiniGameType[] | null; // null = all
   provocativePolls: boolean;
+  escalationEnabled: boolean;
+  estimatedTotalMinutes: number;
 }
 
 export const GAME_CONTEXT_PROFILES: Record<GameType, GameContextProfile> = {
@@ -32,6 +34,8 @@ export const GAME_CONTEXT_PROFILES: Record<GameType, GameContextProfile> = {
     allowedMissionCategories: null,
     allowedMiniGameTypes: null,
     provocativePolls: false,
+    escalationEnabled: true,
+    estimatedTotalMinutes: 120,
   },
   party_game: {
     gameType: 'party_game',
@@ -47,6 +51,8 @@ export const GAME_CONTEXT_PROFILES: Record<GameType, GameContextProfile> = {
     allowedMissionCategories: null,
     allowedMiniGameTypes: null,
     provocativePolls: false,
+    escalationEnabled: true,
+    estimatedTotalMinutes: 90,
   },
   bar_night: {
     gameType: 'bar_night',
@@ -62,6 +68,8 @@ export const GAME_CONTEXT_PROFILES: Record<GameType, GameContextProfile> = {
     allowedMissionCategories: null,
     allowedMiniGameTypes: null,
     provocativePolls: true,
+    escalationEnabled: false,
+    estimatedTotalMinutes: 120,
   },
   dinner_party: {
     gameType: 'dinner_party',
@@ -77,6 +85,8 @@ export const GAME_CONTEXT_PROFILES: Record<GameType, GameContextProfile> = {
     allowedMissionCategories: ['social', 'alliance'], // social missions only
     allowedMiniGameTypes: ['caption', 'hot_take', 'assumption_arena'], // polls-mode friendly
     provocativePolls: false,
+    escalationEnabled: false,
+    estimatedTotalMinutes: 120,
   },
   house_party: {
     gameType: 'house_party',
@@ -92,6 +102,8 @@ export const GAME_CONTEXT_PROFILES: Record<GameType, GameContextProfile> = {
     allowedMissionCategories: null,
     allowedMiniGameTypes: null,
     provocativePolls: false,
+    escalationEnabled: true,
+    estimatedTotalMinutes: 90,
   },
   custom: {
     gameType: 'custom',
@@ -107,11 +119,56 @@ export const GAME_CONTEXT_PROFILES: Record<GameType, GameContextProfile> = {
     allowedMissionCategories: null,
     allowedMiniGameTypes: null,
     provocativePolls: false,
+    escalationEnabled: true,
+    estimatedTotalMinutes: 120,
+  },
+};
+
+/** Override profiles applied on top of the base game type profile */
+export type OverrideProfileKey = 'party_mode_override' | 'speed_round';
+
+export const OVERRIDE_PROFILES: Record<OverrideProfileKey, Partial<GameContextProfile>> = {
+  party_mode_override: {
+    flashIntervalMs: [3 * 60_000, 5 * 60_000],       // 3-5 min
+    pollIntervalMs: [5 * 60_000, 8 * 60_000],         // 5-8 min
+    miniGameIntervalMs: [8 * 60_000, 12 * 60_000],    // 8-12 min
+    flashPointMultiplier: 2.0,
+    provocativePolls: true,
+  },
+  speed_round: {
+    flashIntervalMs: [2 * 60_000, 3 * 60_000],        // 2-3 min
+    pollIntervalMs: [4 * 60_000, 6 * 60_000],          // 4-6 min
+    miniGameIntervalMs: [5 * 60_000, 8 * 60_000],      // 5-8 min
+    standingMissionCount: 5,
+    flashPointMultiplier: 2.0,
   },
 };
 
 export function getGameContextProfile(gameType: string): GameContextProfile {
   return GAME_CONTEXT_PROFILES[gameType as GameType] ?? GAME_CONTEXT_PROFILES.custom;
+}
+
+/**
+ * Returns a profile with room-level overrides (party mode, speed round) merged
+ * on top of the base game type profile.
+ */
+export function getEffectiveProfile(
+  gameType: string,
+  roomSettings?: { partyMode?: boolean; speedMode?: boolean },
+): GameContextProfile {
+  const base = getGameContextProfile(gameType);
+  if (!roomSettings) return base;
+
+  let profile = { ...base };
+
+  if (roomSettings.speedMode) {
+    profile = { ...profile, ...OVERRIDE_PROFILES.speed_round };
+  }
+  if (roomSettings.partyMode) {
+    profile = { ...profile, ...OVERRIDE_PROFILES.party_mode_override };
+  }
+
+  return profile;
 }
 
 /** Provocative poll questions for bar_night contexts */

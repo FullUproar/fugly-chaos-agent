@@ -43,6 +43,10 @@ export interface Room {
   intermission_duration_minutes: number;
   photo_challenges_enabled: boolean;
   ahq_game_night_id: string | null;
+  season_number: number | null;
+  episode_number: number | null;
+  crew_name: string | null;
+  streak_count: number | null;
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
@@ -102,6 +106,9 @@ export interface RoomSettings {
   intensity?: 1 | 2 | 3;
   physical_ok?: boolean;
   competitive_ok?: boolean;
+  partyMode?: boolean;
+  speedMode?: boolean;
+  aiMode?: boolean;
 }
 
 export interface RoomPlayer {
