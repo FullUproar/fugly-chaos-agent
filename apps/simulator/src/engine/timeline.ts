@@ -20,6 +20,11 @@ import { MetricsCollector } from '../metrics/collector.js';
 import { MetricsAggregator } from '../metrics/aggregator.js';
 import type { AggregatedMetrics } from '../metrics/types.js';
 
+/** Clamp a persona stat to valid 1-10 range. */
+function clampStat(value: number): number {
+  return Math.max(1, Math.min(10, Math.round(value)));
+}
+
 // ── Inlined from @chaos-agent/shared to avoid ESM resolution issues ──────────
 
 type MissionCategory = 'social' | 'performance' | 'sabotage' | 'alliance' | 'endurance' | 'meta';
@@ -144,6 +149,11 @@ export class Timeline {
   private agentChaosCounters: Map<string, number> = new Map();
   private readonly personalChaosEnabled: boolean;
 
+  /** Track which agents get double points from comeback mechanic. */
+  private doublePointsAgents: Set<string> = new Set();
+  /** Tick when the last revenge mission was generated. */
+  private lastRevengeMissionTick: number = -Infinity;
+
   constructor(config: SimulationConfig) {
     this.config = config;
     const variation = config.variation ?? null;
@@ -155,6 +165,17 @@ export class Timeline {
       model: config.model,
       dryRun: config.dryRun,
     });
+
+    // Apply persona modifiers if present (e.g. "Alcohol Mode" -- all personas get looser stats)
+    if (variation?.personaModifiers) {
+      const mods = variation.personaModifiers;
+      for (const persona of personas) {
+        if (mods.attentionSpan !== undefined) persona.attentionSpan = clampStat(persona.attentionSpan + mods.attentionSpan);
+        if (mods.chaosTolerance !== undefined) persona.chaosTolerance = clampStat(persona.chaosTolerance + mods.chaosTolerance);
+        if (mods.competitiveness !== undefined) persona.competitiveness = clampStat(persona.competitiveness + mods.competitiveness);
+        if (mods.socialEngagement !== undefined) persona.socialEngagement = clampStat(persona.socialEngagement + mods.socialEngagement);
+      }
+    }
 
     this.pool = new AgentPool(personas);
     this.personalChaosEnabled = variation?.personalChaosLevel ?? false;
@@ -243,6 +264,7 @@ export class Timeline {
         this.pool.getAllAgents(),
         this.sessionState,
         this.gameState,
+        variation,
       );
 
       if (standingClaim) {
@@ -307,21 +329,42 @@ export class Timeline {
         const scheduledData = scheduled.data;
         const eventType = scheduled.type;
 
+        // Target the leader: if enabled and leader is >15pts ahead, hijack flash as a target mission
+        let targetLeaderOverride: string | null = null;
+        if (variation?.targetLeader && eventType === 'flash_mission') {
+          const leader = this.getLeaderInfo();
+          if (leader && leader.margin > 15) {
+            targetLeaderOverride = leader.name;
+            // Override the flash mission description to target the leader
+            const data = scheduledData.data as any;
+            if (data) {
+              data.flash_type = 'target';
+              data.description = `Take down ${leader.name}! They're ${leader.margin} points ahead. Complete this mission to steal 10 of their points.`;
+              data.title = `TARGET: ${leader.name}`;
+              data.requires_target = true;
+            }
+            if (this.config.verbose) {
+              console.log(`  [${tick}min] TARGET LOCK: ${leader.name} is running away with it...`);
+            }
+          }
+        }
+
         // Build full SimEvent from scheduler output
         const event = this.createEvent(tick, eventType as SimEvent['type'], {
-          title: scheduledData.title,
+          title: targetLeaderOverride ? `TARGET: ${targetLeaderOverride}` : scheduledData.title,
           description: (scheduledData.data as any)?.description ?? scheduledData.title,
           points: (scheduledData.data as any)?.points ?? 10,
           flashType: (scheduledData.data as any)?.flash_type,
-          targetPlayer: (scheduledData.data as any)?.target,
+          targetPlayer: targetLeaderOverride ?? (scheduledData.data as any)?.target,
           pollQuestion: (scheduledData.data as any)?.question,
           pollOptions: (scheduledData.data as any)?.options,
           miniGameType: (scheduledData.data as any)?.type,
           timer: (scheduledData.data as any)?.submissionTimeSec,
         });
 
-        // Collect reactions from all agents
-        await this.collectReactions(event, tick, lastEventTick);
+        // Split room: only collect reactions from visible agents
+        const visibleIndices = scheduled.visibleAgentIndices ?? null;
+        await this.collectReactions(event, tick, lastEventTick, visibleIndices);
 
         // Resolve the event based on type
         switch (eventType) {
@@ -336,11 +379,36 @@ export class Timeline {
             break;
         }
 
+        // Comeback mechanic: double_points -- apply 2x for bottom 2 agents on successful claims
+        if (variation?.comebackMechanic === 'double_points' && event.resolution?.passed) {
+          const claimantId = event.resolution.claimantId;
+          if (claimantId && this.doublePointsAgents.has(claimantId)) {
+            const bonus = event.resolution.pointsAwarded;
+            const agent = this.pool.getAgent(claimantId);
+            agent.score += bonus; // already got base points, add the same again for 2x
+            event.resolution.pointsAwarded *= 2;
+            this.doublePointsAgents.delete(claimantId);
+            if (this.config.verbose) {
+              console.log(`  [${tick}min] COMEBACK DOUBLE: ${agent.persona.name} earned 2x points!`);
+            }
+          }
+        }
+
+        // After resolution: update rubber banding / comeback tracking
+        if (variation?.comebackMechanic === 'double_points') {
+          this.updateDoublePointsTracking();
+        }
+
+        // Target the leader: log after resolution
+        if (targetLeaderOverride && this.config.verbose) {
+          console.log(`  [${tick}min] TARGET LOCK: ${targetLeaderOverride} is running away with it...`);
+        }
+
         this.events.push(event);
         this.sessionState.addEvent({
           tick,
           type: eventType,
-          title: scheduledData.title,
+          title: event.title,
           reactions: event.reactions,
         });
         lastEventTick = tick;
@@ -348,6 +416,27 @@ export class Timeline {
         if (this.config.verbose) {
           const vLabel = variation ? ` [${variation.label}]` : '';
           console.log(`  [${tick}min]${vLabel} ${eventType}: "${event.title}" -> ${this.summarizeReactions(event)}`);
+        }
+      }
+
+      // Comeback mechanic: revenge_mission -- bottom player gets a custom revenge mission every 20 minutes
+      if (variation?.comebackMechanic === 'revenge_mission' && tick - this.lastRevengeMissionTick >= 20) {
+        const ranked = this.getRankedAgents();
+        const leader = ranked[0];
+        const bottom = ranked[ranked.length - 1];
+        if (leader && bottom && leader.id !== bottom.id) {
+          const revengeMission: StandingMissionTemplate = {
+            title: `REVENGE: Take Down ${leader.persona.name}`,
+            description: `${bottom.persona.name}'s personal vendetta: get ${leader.persona.name} to fail a challenge, lose a vote, or make a fool of themselves. Claim when you succeed.`,
+            points: 20,
+            category: 'sabotage',
+          };
+          // Add to session state as an active standing mission
+          this.sessionState.standingMissions.push(revengeMission);
+          this.lastRevengeMissionTick = tick;
+          if (this.config.verbose) {
+            console.log(`  [${tick}min] REVENGE MISSION: ${bottom.persona.name} gets a vendetta against ${leader.persona.name}`);
+          }
         }
       }
 
@@ -526,6 +615,7 @@ export class Timeline {
     event: SimEvent,
     tick: number,
     lastEventTick: number,
+    visibleAgentIndices?: number[] | null,
   ): Promise<void> {
     const prompts = new Map<string, string>();
     const allAgents = this.pool.getAllAgents();
@@ -547,7 +637,65 @@ export class Timeline {
       ? `${this.sessionState.activeClaim.missionTitle} by ${this.pool.getAgent(this.sessionState.activeClaim.claimantId).persona.name}`
       : null;
 
-    for (const agent of allAgents) {
+    for (let agentIdx = 0; agentIdx < allAgents.length; agentIdx++) {
+      const agent = allAgents[agentIdx];
+
+      // Split room: skip agents not in the visible set
+      if (visibleAgentIndices && !visibleAgentIndices.includes(agentIdx)) {
+        event.reactions.set(agent.id, {
+          decision: 'ignore',
+          engagement: 0,
+          disruption_perception: 0,
+          fun_factor: 0,
+          annoyance: 0,
+          humor_landed: 0,
+          energy_delta: 0,
+          attention_cost: 0,
+          dialogue: '',
+          internal_thought: 'Didn\'t see this one, was in the other half of the room.',
+          would_send_signal: null,
+          vote_if_applicable: null,
+          claim_if_applicable: false,
+          submission_if_applicable: null,
+          wants_more_chaos: false,
+          wants_less_chaos: false,
+          notification_feedback: 'missed_it',
+          overall_vibe: agent.lastOverallVibe,
+        } as AgentResponse);
+        continue;
+      }
+
+      // Notification mode override: silent/subtle produce flat miss rates instead of persona-based
+      const notificationMode = this.config.variation?.notificationMode;
+      if (notificationMode === 'silent' || notificationMode === 'subtle') {
+        const missChance = notificationMode === 'silent' ? 0.6 : 0.3;
+        if (Math.random() < missChance) {
+          event.reactions.set(agent.id, {
+            decision: 'ignore',
+            engagement: 0,
+            disruption_perception: 0,
+            fun_factor: 0,
+            annoyance: 0,
+            humor_landed: 0,
+            energy_delta: 0,
+            attention_cost: 0,
+            dialogue: '',
+            internal_thought: notificationMode === 'silent'
+              ? 'Phone was on silent, never saw the notification.'
+              : 'Saw the badge but didn\'t bother opening it.',
+            would_send_signal: null,
+            vote_if_applicable: null,
+            claim_if_applicable: false,
+            submission_if_applicable: null,
+            wants_more_chaos: false,
+            wants_less_chaos: false,
+            notification_feedback: 'missed_it',
+            overall_vibe: agent.lastOverallVibe,
+          } as AgentResponse);
+          continue;
+        }
+      }
+
       // Personal chaos level check: skip events for agents who have hit their tolerance
       if (this.personalChaosEnabled) {
         const chaosCount = this.agentChaosCounters.get(agent.id) ?? 0;
@@ -628,11 +776,23 @@ export class Timeline {
         aiMode = aiPersonalizationDepth !== 'none';
       }
 
+      // Determine variation context for prompts
+      const isTargetedLeader = variation?.targetLeader
+        ? (this.getLeaderInfo()?.id === agent.id && (this.getLeaderInfo()?.margin ?? 0) > 15)
+        : false;
+      const hasDoublePoints = variation?.comebackMechanic === 'double_points' && this.doublePointsAgents.has(agent.id);
+      const agentNotifMode = variation?.notificationMode;
+      const personaModified = !!variation?.personaModifiers;
+
       // Merge in event-specific fields
       const context: AgentContext = {
         ...contextBase,
         aiMode,
         aiPersonalizationDepth,
+        isTargetedLeader,
+        hasDoublePoints,
+        notificationMode: agentNotifMode,
+        personaModified,
         event: {
           type: event.type,
           title: event.title,
@@ -742,6 +902,30 @@ export class Timeline {
     const scores = this.pool.getAllAgents().map((a) => a.score);
     scores.sort((a, b) => b - a);
     return scores.indexOf(agent.score) + 1;
+  }
+
+  /** Get the leading player's name and their margin over 2nd place. */
+  private getLeaderInfo(): { name: string; id: string; margin: number } | null {
+    const agents = this.pool.getAllAgents();
+    if (agents.length < 2) return null;
+    const sorted = [...agents].sort((a, b) => b.score - a.score);
+    const margin = sorted[0].score - sorted[1].score;
+    return { name: sorted[0].persona.name, id: sorted[0].id, margin };
+  }
+
+  /** Get all agents sorted by score descending. */
+  private getRankedAgents(): Agent[] {
+    return [...this.pool.getAllAgents()].sort((a, b) => b.score - a.score);
+  }
+
+  /** Update which agents are in the bottom 2 for double_points comeback. */
+  private updateDoublePointsTracking(): void {
+    const ranked = this.getRankedAgents();
+    this.doublePointsAgents.clear();
+    if (ranked.length >= 2) {
+      this.doublePointsAgents.add(ranked[ranked.length - 1].id);
+      this.doublePointsAgents.add(ranked[ranked.length - 2].id);
+    }
   }
 
   /** Brief one-line summary for console output. */

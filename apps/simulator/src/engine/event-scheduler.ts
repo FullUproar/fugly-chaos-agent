@@ -153,6 +153,27 @@ export type ScheduledEventType = 'flash_mission' | 'poll' | 'mini_game';
 export interface ScheduledEvent {
   type: ScheduledEventType;
   data: SimEvent;
+  /** When splitRoom is active, which agent indices see this event (alternating halves). */
+  visibleAgentIndices?: number[];
+}
+
+/**
+ * Compute the interval multiplier at a given tick based on ramp factor.
+ *
+ * - rampFactor > 1.0: starts at rampFactor, linearly reaches 1.0 at 60% through session (slow start).
+ * - rampFactor < 1.0: starts at 1.0, linearly reaches rampFactor at the final minute (escalation).
+ */
+export function currentRampMultiplier(tick: number, totalMinutes: number, rampFactor: number): number {
+  if (rampFactor > 1.0) {
+    // Slow start: ramp from rampFactor down to 1.0 over 60% of session
+    const rampEnd = totalMinutes * 0.6;
+    const progress = Math.min(1.0, tick / rampEnd);
+    return rampFactor - (rampFactor - 1.0) * progress;
+  }
+  // Escalation: ramp from 1.0 down to rampFactor over entire session
+  if (totalMinutes <= 0) return 1.0;
+  const progress = Math.min(1.0, tick / totalMinutes);
+  return 1.0 - (1.0 - rampFactor) * progress;
 }
 
 /**
@@ -170,6 +191,7 @@ export class EventScheduler {
   private readonly config: ScenarioDefinition['eventFrequency'];
   private readonly variation: ScenarioVariation | null;
   private totalEventsFired: number = 0;
+  private splitRoomFlip: boolean = false;
 
   /**
    * Per-event-type cooldowns are rolled ONCE when an event fires,
@@ -245,8 +267,11 @@ export class EventScheduler {
       this.nextMiniGameEligible = pullForward(this.nextMiniGameEligible);
     }
 
-    // 5b. Calculate interval ramp factor (shrinks from rampFactor to 1.0 over session)
+    // 5b. Calculate interval ramp factor (shrinks intervals over time when < 1.0, or expands early when > 1.0)
     const rampFactor = this.calcRampFactor(tick, sessionState);
+
+    // 5c. Wave pattern: alternate between gentle (2x) and intense (0.5x) in 15-minute waves
+    const waveMult = this.calcWaveMultiplier(tick);
 
     // 6. Build candidate list of event types that have reached their eligible tick.
     //    Default mix: ~50% flash, ~30% poll, ~20% mini-game
@@ -294,7 +319,7 @@ export class EventScheduler {
           mission.points = Math.round(mission.points * this.variation.flashPointMultiplier);
         }
         this.lastFlashTick = tick;
-        this.nextFlashEligible = tick + this.randomInRange(this.config.flashMissionIntervalMin) * rampFactor;
+        this.nextFlashEligible = tick + this.randomInRange(this.config.flashMissionIntervalMin) * rampFactor * waveMult;
         this.totalEventsFired++;
         return {
           type: 'flash_mission',
@@ -305,13 +330,14 @@ export class EventScheduler {
             data: { ...mission },
             reactions: new Map(),
           },
+          ...this.buildSplitRoom(sessionState),
         };
       }
       case 'poll': {
         const poll = this.pickPoll(playerNames);
         if (!poll) return null;
         this.lastPollTick = tick;
-        this.nextPollEligible = tick + this.randomInRange(this.config.pollIntervalMin) * rampFactor;
+        this.nextPollEligible = tick + this.randomInRange(this.config.pollIntervalMin) * rampFactor * waveMult;
         this.totalEventsFired++;
         return {
           type: 'poll',
@@ -322,13 +348,19 @@ export class EventScheduler {
             data: { question: poll.question, options: poll.options },
             reactions: new Map(),
           },
+          ...this.buildSplitRoom(sessionState),
         };
       }
       case 'mini_game': {
         const miniGame = this.pickMiniGame(playerNames);
         if (!miniGame) return null;
         this.lastMiniGameTick = tick;
-        this.nextMiniGameEligible = tick + this.randomInRange(this.config.miniGameIntervalMin) * rampFactor;
+        // When allowedEventTypes is mini_game only, fire at flash interval (faster)
+        const isMiniGameOnly = allowedTypes && allowedTypes.length === 1 && allowedTypes[0] === 'mini_game';
+        const miniGameInterval = isMiniGameOnly
+          ? this.randomInRange(this.config.flashMissionIntervalMin)
+          : this.randomInRange(this.config.miniGameIntervalMin);
+        this.nextMiniGameEligible = tick + miniGameInterval * rampFactor * waveMult;
         this.totalEventsFired++;
         return {
           type: 'mini_game',
@@ -339,6 +371,7 @@ export class EventScheduler {
             data: { ...miniGame },
             reactions: new Map(),
           },
+          ...this.buildSplitRoom(sessionState),
         };
       }
     }
@@ -346,14 +379,46 @@ export class EventScheduler {
 
   // ---- Private helpers ----
 
-  /** Calculate the current ramp factor (shrinks from initial rampFactor to 1.0 over session). */
+  /**
+   * Calculate the current ramp factor.
+   *
+   * When intervalRampFactor > 1.0: intervals start wide and shrink to 1.0 (slow start).
+   * When intervalRampFactor < 1.0: intervals start at 1.0 and shrink to rampFactor (escalation).
+   * Uses currentRampMultiplier(tick, totalMinutes, rampFactor) for linear interpolation.
+   */
   private calcRampFactor(tick: number, sessionState: SessionState): number {
-    if (!this.variation?.intervalRampFactor || this.variation.intervalRampFactor <= 1.0) return 1.0;
-    // Linear ramp: starts at intervalRampFactor, reaches 1.0 at ~60% through the session
-    // We estimate total minutes from the event log's existence (rough heuristic)
-    const progress = Math.min(1.0, tick / 60); // ramp completes by minute 60
-    const factor = this.variation.intervalRampFactor - (this.variation.intervalRampFactor - 1.0) * progress;
-    return Math.max(1.0, factor);
+    const rampFactor = this.variation?.intervalRampFactor;
+    if (!rampFactor || rampFactor === 1.0) return 1.0;
+
+    // Estimate total minutes (rough heuristic from session)
+    const totalMinutes = 90; // conservative default
+    return currentRampMultiplier(tick, totalMinutes, rampFactor);
+  }
+
+  /** Wave pattern: 15-minute alternating waves of gentle (2x) and intense (0.5x). */
+  private calcWaveMultiplier(tick: number): number {
+    if (!this.variation?.wavePattern) return 1.0;
+    const wavePeriod = 15;
+    const waveIndex = Math.floor(tick / wavePeriod);
+    // Even waves = gentle (2x interval = slower), odd waves = intense (0.5x interval = faster)
+    return waveIndex % 2 === 0 ? 2.0 : 0.5;
+  }
+
+  /** Split room: only half the agents see each event, alternating halves. */
+  private buildSplitRoom(sessionState: SessionState): { visibleAgentIndices?: number[] } {
+    if (!this.variation?.splitRoom) return {};
+    const totalPlayers = sessionState.players.length;
+    const indices: number[] = [];
+    for (let i = 0; i < totalPlayers; i++) {
+      // Alternate: even events get even indices, odd events get odd indices
+      if (this.splitRoomFlip ? i % 2 === 0 : i % 2 !== 0) {
+        indices.push(i);
+      }
+    }
+    // Include at least one if rounding left it empty
+    if (indices.length === 0) indices.push(0);
+    this.splitRoomFlip = !this.splitRoomFlip;
+    return { visibleAgentIndices: indices };
   }
 
   /** Pick a flash mission from the shared pool, substituting [PLAYER] if needed. */

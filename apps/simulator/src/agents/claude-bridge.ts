@@ -197,7 +197,7 @@ export class ClaudeBridge {
     userPrompt: string,
   ): Promise<AgentResponse> {
     if (this.dryRun) {
-      return this.mockAgentResponse();
+      return this.mockAgentResponse(userPrompt);
     }
     return this.callWithRetry<AgentResponse>(
       systemPrompt,
@@ -215,8 +215,8 @@ export class ClaudeBridge {
     const results = new Map<string, AgentResponse>();
 
     if (this.dryRun) {
-      for (const [agentId] of agentPrompts) {
-        results.set(agentId, this.mockAgentResponse());
+      for (const [agentId, prompt] of agentPrompts) {
+        results.set(agentId, this.mockAgentResponse(prompt));
       }
       return results;
     }
@@ -327,10 +327,30 @@ export class ClaudeBridge {
     return fallback;
   }
 
+  /** Context hints extracted from the prompt for smarter dry-run mocking. */
+  private extractPromptHints(prompt?: string): {
+    isSilentMode: boolean;
+    isSubtleMode: boolean;
+    isTargetedLeader: boolean;
+    hasDoublePoints: boolean;
+    isPersonaModified: boolean;
+  } {
+    if (!prompt) return { isSilentMode: false, isSubtleMode: false, isTargetedLeader: false, hasDoublePoints: false, isPersonaModified: false };
+    return {
+      isSilentMode: prompt.includes('appear on your phone silently'),
+      isSubtleMode: prompt.includes('subtle badge'),
+      isTargetedLeader: prompt.includes('being targeted because you\'re in the lead'),
+      hasDoublePoints: prompt.includes('next claim is worth DOUBLE'),
+      isPersonaModified: prompt.includes('had a few drinks'),
+    };
+  }
+
   /** Produce a deterministic-ish mock response for --dry-run mode. */
-  private mockAgentResponse(): AgentResponse {
+  private mockAgentResponse(prompt?: string): AgentResponse {
     this.dryRunCounter++;
     const n = this.dryRunCounter;
+
+    const hints = this.extractPromptHints(prompt);
 
     const decisions: AgentResponse['decision'][] = [
       'engage',
@@ -368,12 +388,51 @@ export class ClaudeBridge {
       'If one more thing pops up I\'m putting my phone away.',
     ];
 
+    // Base values
+    let funFactor = ((n * 2) % 10) + 1;
+    let annoyance = ((n * 4) % 10) + 1;
+    let decision = decisions[n % decisions.length];
+    let notifFeedback = notifs[n % notifs.length];
+
+    // Silent/subtle notification modes: higher miss rates
+    if (hints.isSilentMode) {
+      // 60% chance of missing in silent mode
+      if (n % 5 < 3) {
+        decision = 'ignore';
+        notifFeedback = 'missed_it';
+      }
+    } else if (hints.isSubtleMode) {
+      // 30% chance of missing in subtle mode
+      if (n % 10 < 3) {
+        decision = 'ignore';
+        notifFeedback = 'missed_it';
+      }
+    }
+
+    // Persona modified (drunk mode): higher fun, lower engagement quality
+    if (hints.isPersonaModified) {
+      funFactor = Math.min(10, funFactor + 2);
+      annoyance = Math.max(1, annoyance - 1);
+      // Drunk people half-engage or engage, rarely complain
+      if (decision === 'complain') decision = 'half_engage';
+    }
+
+    // Leader targeting: leader gets more annoyed, everyone else has more fun
+    if (hints.isTargetedLeader) {
+      annoyance = Math.min(10, annoyance + 3);
+      funFactor = Math.max(1, funFactor - 2);
+    } else if (hints.hasDoublePoints) {
+      // Bottom player with double points is extra motivated
+      funFactor = Math.min(10, funFactor + 1);
+      if (decision === 'ignore') decision = 'half_engage';
+    }
+
     return {
-      decision: decisions[n % decisions.length],
+      decision,
       engagement: ((n * 3) % 10) + 1,
       disruption_perception: ((n * 7) % 10) + 1,
-      fun_factor: ((n * 2) % 10) + 1,
-      annoyance: ((n * 4) % 10) + 1,
+      fun_factor: funFactor,
+      annoyance,
       humor_landed: ((n * 5) % 10) + 1,
       energy_delta: (n % 7) - 3,
       attention_cost: ((n * 6) % 10) + 1,
@@ -385,7 +444,7 @@ export class ClaudeBridge {
       submission_if_applicable: n % 6 === 0 ? 'My totally real submission' : null,
       wants_more_chaos: n % 3 === 0,
       wants_less_chaos: n % 3 === 2,
-      notification_feedback: notifs[n % notifs.length],
+      notification_feedback: notifFeedback,
       overall_vibe: vibes[n % vibes.length],
       host_power_used: null,
     };

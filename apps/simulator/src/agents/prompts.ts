@@ -46,6 +46,14 @@ export interface AgentContext {
   aiMode?: boolean;
   /** Depth of AI personalization: 'deep', 'light', or 'none'. */
   aiPersonalizationDepth?: 'deep' | 'light' | 'none';
+  /** Whether this agent is being targeted as the leader. */
+  isTargetedLeader?: boolean;
+  /** Whether comeback mechanic grants double points to this agent. */
+  hasDoublePoints?: boolean;
+  /** Notification mode override. */
+  notificationMode?: 'silent' | 'subtle' | 'standard';
+  /** Whether persona modifiers (e.g. alcohol mode) are active. */
+  personaModified?: boolean;
 }
 
 export interface FinalAssessmentContext {
@@ -313,6 +321,29 @@ export function buildUserPrompt(context: AgentContext): string {
   }
   // aiDepth === 'none' -> no block added (control group)
 
+  // ── Variation context lines ──
+  let variationBlock = '';
+  const variationLines: string[] = [];
+
+  if (context.isTargetedLeader) {
+    variationLines.push('NOTE: You are currently being targeted because you\'re in the lead. Everyone is gunning for you.');
+  }
+  if (context.hasDoublePoints) {
+    variationLines.push('NOTE: You\'re in last place. Your next claim is worth DOUBLE. Make it count.');
+  }
+  if (context.notificationMode === 'silent') {
+    variationLines.push('Events appear on your phone silently. You might not notice them.');
+  } else if (context.notificationMode === 'subtle') {
+    variationLines.push('Events show up as a subtle badge. You might miss them if you\'re not paying attention.');
+  }
+  if (context.personaModified) {
+    variationLines.push('NOTE: You\'ve had a few drinks. You\'re feeling more social, less focused, and more willing to go along with chaos.');
+  }
+
+  if (variationLines.length > 0) {
+    variationBlock = ['>>> ACTIVE MODIFIERS <<<', ...variationLines].join('\n');
+  }
+
   // ── Final assembly ──
   const blocks = [
     personaBlock,
@@ -330,6 +361,9 @@ export function buildUserPrompt(context: AgentContext): string {
     historyBlock,
   ];
 
+  if (variationBlock) {
+    blocks.push('', variationBlock);
+  }
   if (hostPowerBlock) {
     blocks.push('', hostPowerBlock);
   }

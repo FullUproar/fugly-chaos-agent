@@ -1,6 +1,7 @@
 import type { Agent } from '../agents/agent.js';
 import type { SessionState } from '../engine/session-state.js';
 import type { GameState } from '../engine/game-state.js';
+import type { ScenarioVariation } from '../config/scenarios.js';
 
 /**
  * Check whether any agent would spontaneously claim a standing mission
@@ -18,6 +19,7 @@ export function checkStandingClaims(
   agents: Agent[],
   sessionState: SessionState,
   gameState: GameState,
+  variation?: ScenarioVariation | null,
 ): { agentId: string; missionId: string; missionTitle: string; points: number } | null {
   const available = sessionState.standingMissions.filter(
     (m) => !sessionState.standingMissionsClaimed.has(m.title),
@@ -77,11 +79,22 @@ export function checkStandingClaims(
       // Pick a mission that fits the agent
       const mission = pickMissionForAgent(agent, available);
       if (mission) {
+        let points = mission.points;
+
+        // Comeback mechanic: double_points for bottom 2 players
+        if (variation?.comebackMechanic === 'double_points') {
+          const sorted = [...agents].sort((a, b) => b.score - a.score);
+          const bottom2Ids = new Set(sorted.slice(-2).map((a) => a.id));
+          if (bottom2Ids.has(agent.id)) {
+            points *= 2;
+          }
+        }
+
         return {
           agentId: agent.id,
           missionId: `standing-${tick}-${agent.id}`,
           missionTitle: mission.title,
-          points: mission.points,
+          points,
         };
       }
     }
