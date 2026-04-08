@@ -1,7 +1,7 @@
 # Fugly's Chaos Agent — Complete Product Brief
 
-**Last Updated:** 2026-03-24
-**Status:** Alpha — feature-complete, entering beta testing
+**Last Updated:** 2026-04-08
+**Status:** Alpha — simulation-validated, entering human playtesting
 **Repository:** https://github.com/FullUproar/fugly-chaos-agent
 **Company:** Full Uproar Games, Inc.
 
@@ -384,9 +384,36 @@ fugly-chaos-agent/
 - Cross-session stat persistence needs real-world testing
 
 ### Deployment Status
-- **Supabase:** All functions deployed, all migrations applied
-- **Play Store:** Google Play Developer account created, pending identity verification. AAB built and ready to upload to internal testing track.
-- **APK:** Preview build available at Expo for sideloading
+- **Supabase:** 35 edge functions deployed, 14 database migrations applied
+- **Play Store:** Google Play Developer account verified. Internal testing track active with testers.
+- **APK:** Latest preview build: https://expo.dev/accounts/fulluproar/projects/chaos-agent/builds/e5722295-ed6f-42fa-b76d-c9a2567bc0b9
+- **EAS Build:** Configured for cloud builds. `preview` profile = APK, `production` profile = AAB.
+
+### Simulation Framework
+A comprehensive AI simulation framework lives at `apps/simulator/`. It uses Claude-powered agent personas to playtest game nights and evaluate timing, frequency, fun factor, and virality across 20+ evaluation factors.
+
+- **96 simulations completed** across 5 rounds of A/B testing
+- **8 agent personas** (Competitor, Social Butterfly, Phone Checker, Rules Lawyer, Newbie, Host, Quiet One, Instigator)
+- **20+ scenario variations** testing frequency, game types, features, ecosystem, and wild experiments
+- Run with: `npx tsx apps/simulator/src/index.ts --ab --scenario <id> --model claude-haiku-4-5-20251001`
+- Results in `results/` directory with JSON + markdown reports + comparison tables
+
+**Key simulation findings applied to the app:**
+- Context-aware frequency profiles per game type (board games need 1 event/30min, parties need 1/8min)
+- Streak pressure is #1 retention mechanic ("Don't break the streak" scored 73.4 — highest ever)
+- Season/episode framing drives crew identity (69.7)
+- Adaptive AI frequency > deep personalization (68.0 vs 63.4)
+- Don't rubber-band, don't patronize newbies, no product pitches
+- Full feature stack compounds (65.8 vs 61.0 vanilla)
+
+### What's Next (Priority Order)
+1. Room temperature/vibe system (color-shifting edges driven by signal aggregation)
+2. Signal rework (no points, temperature input, cooldown)
+3. Challenge of the Night (one dramatic public mission, claimable by all)
+4. Asymmetric missions (secret personal, duo, saboteur)
+5. Drawing canvas fix for real devices
+6. AHQ OAuth endpoint on website side
+7. Vibe integration from AHQ (CHILL/COMPETITIVE/CHAOS/PARTY/COZY)
 
 ## Development Workflow
 
